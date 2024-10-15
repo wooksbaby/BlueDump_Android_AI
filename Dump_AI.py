@@ -32,8 +32,10 @@ def find_person_in_images(target_image_path, images_directory):
 
 # 작업 디렉토리 설정
 current_directory = os.getcwd()
-target_image_path = os.path.join(current_directory, "test2.png")
+target_image_path = os.path.join(current_directory, "test.png")
 images_directory = os.path.join(current_directory, "images")
 
 # 사용 예시
 find_person_in_images(target_image_path, images_directory)
+
+#test해봐야죠dd
