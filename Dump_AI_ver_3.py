@@ -1,6 +1,7 @@
 from deepface import DeepFace
 import os
 import shutil
+import time
 from PIL import Image
 import tensorflow as tf
 
@@ -26,6 +27,22 @@ def ensure_directory_exists(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
+# 로그 기록 함수
+def log_time(model_name, distance_metric, detector_backend, align, matched_count, time_taken, similarities):
+    """로그 파일에 옵션, 매칭된 이미지 수, 걸린 시간, 유사도 점수 기록"""
+    # 유사도 점수의 평균 계산
+    average_similarity = sum(similarities) / len(similarities) if similarities else 0
+
+    log_message = (
+        f"모델: {model_name}, 거리 측정: {distance_metric}, 백엔드: {detector_backend}, align: {align}, "
+        f"매칭된 이미지 수: {matched_count}, 걸린 시간: {time_taken:.2f}초\n"
+        f"유사도 점수 평균: {average_similarity:.2f}\n"  # 평균 추가
+    )
+    
+    with open("classification_log.txt", "a") as log_file:
+        log_file.write(log_message)
+
+
 # 다양한 옵션으로 이미지 분류
 def classify_images_with_options(target_directory, images_directory, output_base_directory):
     """타겟 이미지를 기준으로 다양한 옵션으로 이미지 분류 및 저장"""
@@ -34,9 +51,9 @@ def classify_images_with_options(target_directory, images_directory, output_base
     images = [convert_to_jpg(os.path.join(images_directory, f)) for f in os.listdir(images_directory)]
 
     # 추가할 옵션 리스트들 (모델명, 거리 측정 방식, 얼굴 감지기, 정렬 여부)
-    model_names = ["ArcFace", "VGG-Face", "Facenet", "OpenFace", "DeepFace"]
-    distance_metrics = ["cosine", "euclidean", "euclidean_l2", "manhattan"]
-    detector_backends = ["mtcnn", "ssd", "retinaface", "opencv"]
+    model_names = ["ArcFace", "VGG-Face", "Facenet", "OpenFace", "DeepFace", "Dlib", "SFace", "InsightFace", "MobileFaceNet"]
+    distance_metrics = ["cosine", "euclidean", "manhattan"]
+    detector_backends = ["mtcnn", "retinaface", "opencv"]
     align_options = [True, False]
 
     # 각 옵션 조합을 위한 다중 for문
@@ -44,6 +61,10 @@ def classify_images_with_options(target_directory, images_directory, output_base
         for distance_metric in distance_metrics:
             for detector_backend in detector_backends:
                 for align in align_options:
+                    start_time = time.time()  # 시작 시간
+                    matched_count = 0  # 매칭된 이미지 수 초기화
+                    similarities = []  # 유사도 점수 리스트 초기화
+
                     # 각 옵션에 따라 결과가 저장될 디렉토리 설정
                     option_directory = os.path.join(output_base_directory, f"{model_name}_{distance_metric}_{detector_backend}_align_{align}")
                     ensure_directory_exists(option_directory)
@@ -67,9 +88,15 @@ def classify_images_with_options(target_directory, images_directory, output_base
                                 )
                                 if result["verified"]:
                                     shutil.copy(image, person_directory)  # 타겟 폴더 외부에 파일 복사
+                                    matched_count += 1  # 매칭된 이미지 수 증가
+                                    similarities.append(result['distance'])  # 유사도 점수 저장
                                     print(f"{person_name}의 이미지가 {os.path.basename(image)}에 {model_name}, {distance_metric}, {detector_backend}, align={align} 옵션으로 있습니다.")
                             except Exception as e:
                                 print(f"{os.path.basename(image)}에서 얼굴을 찾을 수 없습니다: {e}")
+
+                    end_time = time.time()  # 종료 시간
+                    time_taken = end_time - start_time  # 소요 시간 계산
+                    log_time(model_name, distance_metric, detector_backend, align, matched_count, time_taken, similarities)  # 로그 기록
 
 # 작업 디렉토리 설정
 current_directory = os.getcwd()
@@ -80,5 +107,3 @@ output_directory = os.path.join(current_directory, "classified_images")  # 분�
 # 사용 예시
 classify_images_with_options(target_directory, images_directory, output_directory)
 
-# GPU 확인
-print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))

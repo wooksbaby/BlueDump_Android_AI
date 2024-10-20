@@ -35,7 +35,7 @@ Markdown==3.7
 MarkupSafe==3.0.1
 ml_dtypes==0.5.0
 mtcnn==1.0.0
-numpy==1.23.5
+# numpy==1.23.5
 nvidia-ml-py==12.560.30
 oauthlib==3.2.2
 opencv-python==4.10.0.84
