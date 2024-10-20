@@ -130,3 +130,103 @@
 유사도 점수 평균: 0.52
 모델: OpenFace, 거리 측정: euclidean, 백엔드: opencv, align: False, 매칭된 이미지 수: 1, 걸린 시간: 34.27초
 유사도 점수 평균: 0.54
+모델: OpenFace, 거리 측정: manhattan, 백엔드: mtcnn, align: True, 매칭된 이미지 수: 0, 걸린 시간: 171.24초
+유사도 점수 평균: 0.00
+모델: OpenFace, 거리 측정: manhattan, 백엔드: mtcnn, align: False, 매칭된 이미지 수: 0, 걸린 시간: 66.35초
+유사도 점수 평균: 0.00
+모델: OpenFace, 거리 측정: manhattan, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 83.25초
+유사도 점수 평균: 0.00
+모델: OpenFace, 거리 측정: manhattan, 백엔드: retinaface, align: False, 매칭된 이미지 수: 0, 걸린 시간: 42.15초
+유사도 점수 평균: 0.00
+모델: OpenFace, 거리 측정: manhattan, 백엔드: opencv, align: True, 매칭된 이미지 수: 0, 걸린 시간: 54.19초
+유사도 점수 평균: 0.00
+모델: OpenFace, 거리 측정: manhattan, 백엔드: opencv, align: False, 매칭된 이미지 수: 0, 걸린 시간: 34.50초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: cosine, 백엔드: mtcnn, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: cosine, 백엔드: mtcnn, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: cosine, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: cosine, 백엔드: retinaface, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: cosine, 백엔드: opencv, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: cosine, 백엔드: opencv, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: euclidean, 백엔드: mtcnn, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: euclidean, 백엔드: mtcnn, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: euclidean, 백엔드: retinaface, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: euclidean, 백엔드: opencv, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: euclidean, 백엔드: opencv, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: manhattan, 백엔드: mtcnn, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: manhattan, 백엔드: mtcnn, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: manhattan, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: manhattan, 백엔드: retinaface, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: manhattan, 백엔드: opencv, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: DeepFace, 거리 측정: manhattan, 백엔드: opencv, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: cosine, 백엔드: mtcnn, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: cosine, 백엔드: mtcnn, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: cosine, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: cosine, 백엔드: retinaface, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: cosine, 백엔드: opencv, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: cosine, 백엔드: opencv, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: euclidean, 백엔드: mtcnn, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: euclidean, 백엔드: mtcnn, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: euclidean, 백엔드: retinaface, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: euclidean, 백엔드: opencv, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: euclidean, 백엔드: opencv, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: manhattan, 백엔드: mtcnn, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: manhattan, 백엔드: mtcnn, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: manhattan, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: manhattan, 백엔드: retinaface, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: manhattan, 백엔드: opencv, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: Dlib, 거리 측정: manhattan, 백엔드: opencv, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: SFace, 거리 측정: cosine, 백엔드: mtcnn, align: True, 매칭된 이미지 수: 16, 걸린 시간: 147.91초
+유사도 점수 평균: 0.50
+모델: SFace, 거리 측정: cosine, 백엔드: mtcnn, align: False, 매칭된 이미지 수: 18, 걸린 시간: 40.58초
+유사도 점수 평균: 0.50
+모델: SFace, 거리 측정: cosine, 백엔드: retinaface, align: True, 매칭된 이미지 수: 12, 걸린 시간: 55.89초
+유사도 점수 평균: 0.47
+모델: SFace, 거리 측정: cosine, 백엔드: retinaface, align: False, 매칭된 이미지 수: 12, 걸린 시간: 15.62초
+유사도 점수 평균: 0.50
+모델: SFace, 거리 측정: cosine, 백엔드: opencv, align: True, 매칭된 이미지 수: 9, 걸린 시간: 33.07초
+유사도 점수 평균: 0.46
+모델: SFace, 거리 측정: cosine, 백엔드: opencv, align: False, 매칭된 이미지 수: 12, 걸린 시간: 13.98초
+유사도 점수 평균: 0.48
+모델: SFace, 거리 측정: euclidean, 백엔드: mtcnn, align: True, 매칭된 이미지 수: 56, 걸린 시간: 144.21초
+유사도 점수 평균: 9.62
+모델: SFace, 거리 측정: euclidean, 백엔드: mtcnn, align: False, 매칭된 이미지 수: 62, 걸린 시간: 40.55초
+유사도 점수 평균: 9.43
