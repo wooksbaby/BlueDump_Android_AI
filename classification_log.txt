@@ -322,3 +322,23 @@
 유사도 점수 평균: 0.00
 모델: MobileFaceNet, 거리 측정: manhattan, 백엔드: opencv, align: False, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
 유사도 점수 평균: 0.00
+모델: VGG-Face, 거리 측정: euclidean12, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 85.64초
+유사도 점수 평균: 0.00
+모델: VGG-Face, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 35, 걸린 시간: 85.50초
+유사도 점수 평균: 1.06
+모델: Facenet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 26, 걸린 시간: 135.82초
+유사도 점수 평균: 8.35
+모델: Facenet512, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 53, 걸린 시간: 135.87초
+유사도 점수 평균: 19.90
+모델: ArcFace, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 16, 걸린 시간: 88.28초
+유사도 점수 평균: 3.76
+모델: Dlib, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.01초
+유사도 점수 평균: 0.00
+모델: SFace, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 35, 걸린 시간: 57.17초
+유사도 점수 평균: 9.73
+모델: GhostFaceNet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 9, 걸린 시간: 127.93초
+유사도 점수 평균: 32.02
+모델: Facenet, 거리 측정: euclidean_l2, 백엔드: retinaface, align: True, 매칭된 이미지 수: 22, 걸린 시간: 162.38초
+유사도 점수 평균: 0.70
+모델: Facenet512, 거리 측정: euclidean_l2, 백엔드: retinaface, align: True, 매칭된 이미지 수: 58, 걸린 시간: 135.22초
+유사도 점수 평균: 0.86

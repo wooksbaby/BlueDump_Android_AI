@@ -51,10 +51,10 @@ def classify_images_with_options(target_directory, images_directory, output_base
     images = [convert_to_jpg(os.path.join(images_directory, f)) for f in os.listdir(images_directory)]
 
     # 추가할 옵션 리스트들 (모델명, 거리 측정 방식, 얼굴 감지기, 정렬 여부)
-    model_names = ["ArcFace", "VGG-Face", "Facenet", "OpenFace", "DeepFace", "Dlib", "SFace", "InsightFace", "MobileFaceNet"]
-    distance_metrics = ["cosine", "euclidean", "manhattan"]
-    detector_backends = ["mtcnn", "retinaface", "opencv"]
-    align_options = [True, False]
+    model_names = ["Facenet"]
+    distance_metrics = ["euclidean"]
+    detector_backends = ["retinaface"]
+    align_options = [True]
 
     # 각 옵션 조합을 위한 다중 for문
     for model_name in model_names:
@@ -102,8 +102,4 @@ def classify_images_with_options(target_directory, images_directory, output_base
 current_directory = os.getcwd()
 target_directory = os.path.join(current_directory, "target")
 images_directory = os.path.join(current_directory, "images")
-output_directory = os.path.join(current_directory, "classified_images")  # 분류된 이미지를 저장할 외부 폴더
-
-# 사용 예시
-classify_images_with_options(target_directory, images_directory, output_directory)
-
+output_directory = os.path.join(current_directory, "classified_images_new")  # 분류된 이미지를 저장할 외부 폴더
