@@ -342,3 +342,19 @@
 유사도 점수 평균: 0.70
 모델: Facenet512, 거리 측정: euclidean_l2, 백엔드: retinaface, align: True, 매칭된 이미지 수: 58, 걸린 시간: 135.22초
 유사도 점수 평균: 0.86
+모델: Facenet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 11, 걸린 시간: 154.21초
+유사도 점수 평균: 8.33
+모델: Facenet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 11, 걸린 시간: 128.43초
+유사도 점수 평균: 8.33
+모델: Facenet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 9, 걸린 시간: 105.19초
+유사도 점수 평균: 7.97
+모델: Facenet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 9, 걸린 시간: 105.33초
+유사도 점수 평균: 7.97
+모델: Facenet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 0, 걸린 시간: 0.00초
+유사도 점수 평균: 0.00
+모델: Facenet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 9, 걸린 시간: 105.89초
+유사도 점수 평균: 7.97
+모델: Facenet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 13, 걸린 시간: 68.53초
+유사도 점수 평균: 8.24
+모델: Facenet, 거리 측정: euclidean, 백엔드: retinaface, align: True, 매칭된 이미지 수: 3, 걸린 시간: 71.90초
+유사도 점수 평균: 9.27

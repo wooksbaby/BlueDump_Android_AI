@@ -65,8 +65,8 @@ def classify_images_with_options(target_directory, images_directory, output_base
                     matched_count = 0  # 매칭된 이미지 수 초기화
                     similarities = []  # 유사도 점수 리스트 초기화
 
-                    # 각 옵션에 따라 결과가 저장될 디렉토리 설정
-                    option_directory = os.path.join(output_base_directory, f"{model_name}_{distance_metric}_{detector_backend}_align_{align}")
+                    # 결과가 저장될 디렉토리 설정
+                    option_directory = os.path.join(output_base_directory)
                     ensure_directory_exists(option_directory)
 
                     for image in images:
@@ -99,7 +99,4 @@ def classify_images_with_options(target_directory, images_directory, output_base
                     log_time(model_name, distance_metric, detector_backend, align, matched_count, time_taken, similarities)  # 로그 기록
 
 # 작업 디렉토리 설정
-current_directory = os.getcwd()
-target_directory = os.path.join(current_directory, "target")
-images_directory = os.path.join(current_directory, "images")
-output_directory = os.path.join(current_directory, "classified_images_new")  # 분류된 이미지를 저장할 외부 폴더
+
