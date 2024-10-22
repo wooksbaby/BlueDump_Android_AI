@@ -103,3 +103,6 @@ current_directory = os.getcwd()
 target_directory = os.path.join(current_directory, "target")
 images_directory = os.path.join(current_directory, "images")
 output_directory = os.path.join(current_directory, "classified_images_new")  # 분류된 이미지를 저장할 외부 폴더
+
+
+classify_images_with_options(target_directory, images_directory, output_directory)
