@@ -11,13 +11,32 @@ app = FastAPI()
 
 
 # .env 파일 로드
-dotenv_path = os.path.join('/home/BlueDump/', '.env')
-load_dotenv()
+# .env 파일 로드
+dotenv_path = "/home/BlueDump/.env"
+load_dotenv(dotenv_path)
 
+# 환경 변수 로드
 bucket_name = os.getenv("GCS_BUCKET_NAME")
 credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+print ("--------------------------------------")
+print (credentials_path)
+print ("--------------------------------------")
+
+# 로드된 환경 변수 확인
+if bucket_name is None:
+    print("GCS_BUCKET_NAME 환경 변수가 설정되지 않았습니다.")
+else:
+    print(f"Bucket Name: {bucket_name}")
+
+if credentials_path is None:
+    print("GOOGLE_APPLICATION_CREDENTIALS 환경 변수가 설정되지 않았습니다.")
+else:
+    print(f"Credentials Path: {credentials_path}")
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+
+# Google Cloud Storage 클라이언트 초기화
 storage_client = storage.Client()
+
 bucket = storage_client.bucket(bucket_name)
 
 # Google Cloud Storage에 파일을 업로드하는 함수
@@ -89,7 +108,7 @@ def handle_background_tasks():
 
 
     #!!!!!!!!!!!!!!!!!마지막으로 자바서버에 완료했다고 리퀘스트 코드 추가하기!!!!!
-
+    return
 # 여기서 FastAPI 서버를 실행
 if __name__ == "__main__":
     import uvicorn
