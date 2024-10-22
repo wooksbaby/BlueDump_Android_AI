@@ -51,52 +51,49 @@ def classify_images_with_options(target_directory, images_directory, output_base
     images = [convert_to_jpg(os.path.join(images_directory, f)) for f in os.listdir(images_directory)]
 
     # 추가할 옵션 리스트들 (모델명, 거리 측정 방식, 얼굴 감지기, 정렬 여부)
-    model_names = ["Facenet"]
-    distance_metrics = ["euclidean"]
-    detector_backends = ["retinaface"]
+    model_name = ["Facenet"]
+    distance_metric = ["euclidean"]
+    detector_backend = ["retinaface"]
     align_options = [True]
 
     # 각 옵션 조합을 위한 다중 for문
-    for model_name in model_names:
-        for distance_metric in distance_metrics:
-            for detector_backend in detector_backends:
-                for align in align_options:
-                    start_time = time.time()  # 시작 시간
-                    matched_count = 0  # 매칭된 이미지 수 초기화
-                    similarities = []  # 유사도 점수 리스트 초기화
+    for align in align_options:
+        start_time = time.time()  # 시작 시간
+        matched_count = 0  # 매칭된 이미지 수 초기화
+        similarities = []  # 유사도 점수 리스트 초기화
 
-                    # 각 옵션에 따라 결과가 저장될 디렉토리 설정
-                    option_directory = os.path.join(output_base_directory, f"{model_name}_{distance_metric}_{detector_backend}_align_{align}")
-                    ensure_directory_exists(option_directory)
+        # 각 옵션에 따라 결과가 저장될 디렉토리 설정
+        option_directory = os.path.join(output_base_directory, f"{model_name}_{distance_metric}_{detector_backend}_align_{align}")
+        ensure_directory_exists(option_directory)
 
-                    for image in images:
-                        for target_image in target_images:
-                            person_name = os.path.splitext(os.path.basename(target_image))[0]
-                            person_directory = os.path.join(option_directory, person_name)  # 각 옵션별 디렉토리 생성
-                            ensure_directory_exists(person_directory)
+        for image in images:
+            for target_image in target_images:
+                person_name = os.path.splitext(os.path.basename(target_image))[0]
+                person_directory = os.path.join(option_directory, person_name)  # 각 옵션별 디렉토리 생성
+                ensure_directory_exists(person_directory)
 
-                            try:
-                                # DeepFace로 얼굴 비교 (GPU 사용)
-                                result = DeepFace.verify(
-                                    img1_path=target_image,
-                                    img2_path=image,
-                                    model_name=model_name,
-                                    distance_metric=distance_metric,
-                                    detector_backend=detector_backend,
-                                    enforce_detection=True,
-                                    align=align
-                                )
-                                if result["verified"]:
-                                    shutil.copy(image, person_directory)  # 타겟 폴더 외부에 파일 복사
-                                    matched_count += 1  # 매칭된 이미지 수 증가
-                                    similarities.append(result['distance'])  # 유사도 점수 저장
-                                    print(f"{person_name}의 이미지가 {os.path.basename(image)}에 {model_name}, {distance_metric}, {detector_backend}, align={align} 옵션으로 있습니다.")
-                            except Exception as e:
-                                print(f"{os.path.basename(image)}에서 얼굴을 찾을 수 없습니다: {e}")
+                try:
+                    # DeepFace로 얼굴 비교 (GPU 사용)
+                    result = DeepFace.verify(
+                        img1_path=target_image,
+                        img2_path=image,
+                        model_name=model_name,
+                        distance_metric=distance_metric,
+                        detector_backend=detector_backend,
+                        enforce_detection=True,
+                        align=align
+                    )
+                    if result["verified"]:
+                        shutil.copy(image, person_directory)  # 타겟 폴더 외부에 파일 복사
+                        matched_count += 1  # 매칭된 이미지 수 증가
+                        similarities.append(result['distance'])  # 유사도 점수 저장
+                        print(f"{person_name}의 이미지가 {os.path.basename(image)}에 {model_name}, {distance_metric}, {detector_backend}, align={align} 옵션으로 있습니다.")
+                except Exception as e:
+                    print(f"{os.path.basename(image)}에서 얼굴을 찾을 수 없습니다: {e}")
 
-                    end_time = time.time()  # 종료 시간
-                    time_taken = end_time - start_time  # 소요 시간 계산
-                    log_time(model_name, distance_metric, detector_backend, align, matched_count, time_taken, similarities)  # 로그 기록
+        end_time = time.time()  # 종료 시간
+        time_taken = end_time - start_time  # 소요 시간 계산
+        log_time(model_name, distance_metric, detector_backend, align, matched_count, time_taken, similarities)  # 로그 기록
 
 # 작업 디렉토리 설정
 current_directory = os.getcwd()
