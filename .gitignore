@@ -173,5 +173,12 @@ classified_images_new/
 # cuDNN 폴더 무시
 cudnn-linux-x86_64-8.6.0.163_cuda11-archive/
 
-
 cudnn-linux-x86_64-8.9.7.29_cuda12-archive.tar.xz
+
+temp/
+
+BlueDump_Android_AI/classified_images_new/
+
+/home/BlueDump/BlueDump_Android_AI/api_test.py
+
+BlueDump_Android_AI/myenv
