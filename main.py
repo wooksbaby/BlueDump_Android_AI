@@ -18,9 +18,7 @@ load_dotenv(dotenv_path)
 # 환경 변수 로드
 bucket_name = os.getenv("GCS_BUCKET_NAME")
 credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-print ("--------------------------------------")
-print (credentials_path)
-print ("--------------------------------------")
+
 
 # 로드된 환경 변수 확인
 if bucket_name is None:

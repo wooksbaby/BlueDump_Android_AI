@@ -1,4 +1,13 @@
-from fastapi import FastAPI, BackgroundTasks, File, UploadFile, HTTPException, Depends
+from fastapi import (
+    FastAPI,
+    BackgroundTasks,
+    File,
+    UploadFile,
+    HTTPException,
+    Depends,
+    Form,
+    Body,
+)
 import os
 from google.cloud import storage
 from dotenv import load_dotenv
@@ -11,7 +20,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import Column, Integer
 from sqlalchemy.future import select
-
+import json
+from typing import List
 
 
 # FastAPI 인스턴스 생성
@@ -50,11 +60,16 @@ engine = create_async_engine(DATABASE_URL, echo=True)
 async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
+@app.get("/")
+async def welcome():
+    return {"message": "Welcome BLUEDUMP"}
+
+
 # SQLAlchemy 모델 정의
 Base = declarative_base()
 
 
-#이미지 가져오는 코드
+# 이미지 가져오는 코드
 async def get_grouproom_data(db: AsyncSession, grouproom_num: int):
     # GROUPROOM_NUM 값을 기준으로 GROUPROOM_NUM과 MEMBER_NUM 가져오기
     query = select(GroupRoom).where(GroupRoom.GROUPROOM_NUM == grouproom_num)
@@ -68,6 +83,7 @@ storage_client = storage.Client()
 
 bucket = storage_client.bucket(bucket_name)
 
+
 # Google Cloud Storage에 파일을 업로드하는 함수
 def upload_folder_to_gcs(bucket, local_folder_path, destination_blob_prefix):
     for root, dirs, files in os.walk(local_folder_path):
@@ -78,6 +94,7 @@ def upload_folder_to_gcs(bucket, local_folder_path, destination_blob_prefix):
             blob = bucket.blob(gcs_blob_path)
             blob.upload_from_filename(local_file_path)
             print(f"Uploaded {local_file_path} to {gcs_blob_path}")
+
 
 # Google Cloud Storage에서 폴더의 모든 파일을 다운로드하는 함수
 def download_folder_from_gcs(bucket, gcs_folder_path, local_folder_path):
@@ -94,60 +111,89 @@ def download_folder_from_gcs(bucket, gcs_folder_path, local_folder_path):
             print(f"Downloaded {file_name} to {local_file_path}")
     if not found_files:
         print("No files found in the specified GCS folder.")
+#회원가입
+class SignUpResponse(BaseModel):
+    message: str
+    user_id: str
 
+
+
+# 이미지 업로드 처리
 # POST 요청 처리
 class UploadRequest(BaseModel):
     GROUPROOM_NUM: int
     MEMBER_NUM: int
 
+
+class Message(BaseModel):
+    groupID: str  # groupID를 문자열로 받음
+
+
 @app.post("/upload/")
 async def upload_files(
-    upload_request: UploadRequest,  # JSON 본문에서 받은 데이터
-    files: list[UploadFile] = File(...)  # 파일 리스트
+    upload_request: UploadRequest = Body(
+        ..., example={"GROUPROOM_NUM": 1, "MEMBER_NUM": 2}
+    ),
+    files: List[UploadFile] = File(...),
 ):
-
-
-
-    GROUPROOM_NUM = upload_request.grouproom_num
-    MEMBER_NUM = upload_request.member_num
-
     try:
+        # GROUPROOM_NUM, MEMBER_NUM 출력
+        GROUPROOM_NUM = upload_request.GROUPROOM_NUM
+        MEMBER_NUM = upload_request.MEMBER_NUM
+
         bucket = storage_client.bucket(bucket_name)
-
-
         gcs_folder_path = f"{GCS_FOLDER_PREFIX}{GROUPROOM_NUM}/{MEMBER_NUM}/"
 
-        
         for file in files:
             blob = bucket.blob(f"{gcs_folder_path}{file.filename}")
             blob.upload_from_file(file.file, content_type=file.content_type)
-        
-        return {"message": "Files uploaded successfully"}, 200
-    
+
+        return {"message": "Files uploaded with JSON request successfully"}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error uploading files: {str(e)}")
 
 
 
-class Message(BaseModel):
-    groupID: str  # groupID를 문자열로 받음
+@app.post("/upload/")
+async def upload_files(
+    upload_request: UploadRequest = Body(
+        ..., example={"GROUPROOM_NUM": 1, "MEMBER_NUM": 2}
+    ),
+    files: List[UploadFile] = File(...),
+):
+    try:
+        # GROUPROOM_NUM, MEMBER_NUM 출력
+        GROUPROOM_NUM = upload_request.GROUPROOM_NUM
+        MEMBER_NUM = upload_request.MEMBER_NUM
+
+        bucket = storage_client.bucket(bucket_name)
+        gcs_folder_path = f"{GCS_FOLDER_PREFIX}{GROUPROOM_NUM}/{MEMBER_NUM}/"
+
+        for file in files:
+            blob = bucket.blob(f"{gcs_folder_path}{file.filename}")
+            blob.upload_from_file(file.file, content_type=file.content_type)
+
+        return {"message": "Files uploaded with JSON request successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error uploading files: {str(e)}")
 
 @app.post("/bluedump/")
 async def send_message(msg: Message, background_tasks: BackgroundTasks):
-    # temp 폴더 경로 설정
     temp_folder_path = "./temp"
 
-    # temp 폴더가 존재하는지 확인
     if os.path.exists(temp_folder_path):
         shutil.rmtree(temp_folder_path)
         print(f"{temp_folder_path}가 삭제되었습니다.")
-    else:
-        print(f"{temp_folder_path} 폴더가 존재하지 않습니다.")
 
-    global group_id
-    group_id = msg.groupID  # groupID를 전역 변수로 설정
-    background_tasks.add_task(handle_background_tasks)
+    group_id = msg.groupID
+    background_tasks.add_task(handle_background_tasks, group_id=group_id)
     return {"message": f"You sent groupID: {group_id}"}
+
+
+def handle_background_tasks(group_id: str): ...
+
 
 def handle_background_tasks():
     local_folder_path = "./temp/target"
@@ -164,11 +210,8 @@ def handle_background_tasks():
     return
 
 
-
-
-
-
 # 여기서 FastAPI 서버를 실행
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
