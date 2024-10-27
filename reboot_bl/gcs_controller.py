@@ -57,3 +57,35 @@ def download_folder_from_gcs(gcs_folder_path, local_folder_path):
     
     if not found_files:
         print("No files found in the specified GCS folder.")
+
+
+
+
+def download_images_from_gcs(room_id: int, target_directory: str, images_directory: str):
+    """GCS에서 타겟 이미지와 일반 이미지를 다운로드"""
+    target_blob_prefix = f"room/{room_id}/target/"
+    images_blob_prefix = f"room/{room_id}/images/"
+
+    # 타겟 이미지 다운로드
+    download_folder_from_gcs(target_blob_prefix, target_directory)
+
+    # 일반 이미지 다운로드
+    download_folder_from_gcs(images_blob_prefix, images_directory)
+
+def download_folder_from_gcs(gcs_folder_path, local_folder_path):
+    """GCS 폴더에서 로컬 폴더로 모든 파일 다운로드"""
+    blobs = bucket.list_blobs(prefix=gcs_folder_path)
+    os.makedirs(local_folder_path, exist_ok=True)
+    found_files = False
+
+    for blob in blobs:
+        print(f"Found file: {blob.name}")
+        found_files = True
+        file_name = os.path.basename(blob.name)
+        if file_name:
+            local_file_path = os.path.join(local_folder_path, file_name)
+            blob.download_to_filename(local_file_path)
+            print(f"Downloaded {file_name} to {local_file_path}")
+    
+    if not found_files:
+        print("No files found in the specified GCS folder.")

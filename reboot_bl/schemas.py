@@ -69,3 +69,25 @@ class RoomDetailResponse(BaseModel):
     group_room_num: int
     group_room_url: str
     members: List[MemberDetail] # 멤버 번호의 리스트
+
+class GroupRoomRequest(BaseModel):
+    group_room_num: int
+
+class GroupRoomStatusResponse(BaseModel):
+    group_room_num: int
+    classified_finish_flag: str
+
+# 업로드된 이미지 응답 모델
+class UploadedImagesRequest(BaseModel):
+    group_room_num: int
+
+class UploadedImagesResponse(BaseModel):
+    group_room_num: int
+    image_urls: List[str]
+    
+    
+class MemberNumRequest(BaseModel):
+
+    member_num: int
+class ClassifyPhotosRequest(BaseModel):
+    group_room_num: int

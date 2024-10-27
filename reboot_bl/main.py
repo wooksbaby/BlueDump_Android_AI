@@ -2,13 +2,16 @@ from fastapi import Request, FastAPI, HTTPException, Form, UploadFile, File
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 from routers import router
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 import uvicorn
 from pydantic import BaseModel
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from typing import List
-
+import os
+import json
 # Load environment variables from the .env file
 load_dotenv("/home/BlueDump/.env")
 
@@ -81,9 +84,29 @@ async def root():
     return {"message": "Welcome to the Group Room API"}
 
 
-# 여기에 get_db와 GroupRoom 모델 정의도 포함해야 합니다.
 
-app.include_router(router)
+@app.get("/.well-known/invitePage.html", response_class=HTMLResponse)
+async def serve_invite_page():
+    file_path = "/home/BlueDump/.well-known/invitePage.html"
+    
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = file.read()
+        return HTMLResponse(content=content)
+    else:
+        return HTMLResponse(content="파일을 찾을 수 없습니다.", status_code=404)
+
+@app.get("/.well-known/assetlinks.json", response_class=JSONResponse)
+async def serve_assetlinks():
+    file_path = "/home/BlueDump/.well-known/assetlinks.json"
+    
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = json.load(file)
+        return JSONResponse(content=content)
+    else:
+        return JSONResponse(content={"error": "파일을 찾을 수 없습니다."}, status_code=404)
+
 
 
 # Run the application using Uvicorn if this script is executed directly

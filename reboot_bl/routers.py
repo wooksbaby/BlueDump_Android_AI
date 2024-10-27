@@ -1,5 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form
-from gcs_controller import upload_file_to_gcs, copy_profile_image_in_gcs
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form, Request
+from gcs_controller import upload_file_to_gcs, copy_profile_image_in_gcs, download_images_from_gcs
 from database import SessionLocal, get_db
 from model import Member, GroupRoom, GroupDetail
 from schemas import (
@@ -13,12 +13,20 @@ from schemas import (
     JoinRoomRequest,
     RoomDetailResponse,
     MemberDetail,
+    GroupRoomStatusResponse,
+    GroupRoomRequest,
+    UploadedImagesRequest,
+    UploadedImagesResponse,
+    MemberNumRequest,
+    ClassifyPhotosRequest
 )
 from utils import verify_password, hash_password  # Assuming these functions exist
 from sqlalchemy.orm import Session
 from typing import List, Union
 from bdconfig import bucket
 from fastapi.responses import JSONResponse
+from image_processing import classify_images
+import asyncio
 
 
 router = APIRouter()
@@ -26,7 +34,7 @@ router = APIRouter()
 
 @router.post("/upload")
 async def upload_profile_images(
-    grouproom_num: int = Form(...),  # 클라이언트에서 GROUPROOM_NUM을 받음
+    grouproom_num: str = Form(...),  # 클라이언트에서 GROUPROOM_NUM을 문자열로 받음
     files: List[UploadFile] = File(...),
 ):
 
@@ -49,6 +57,26 @@ async def upload_profile_images(
             return {"message": "Failed to upload one or more images."}
 
     return {"message": "Images uploaded successfully", "urls": urls}
+
+@router.post("/uploaded_images", response_model=UploadedImagesResponse)
+async def get_uploaded_images(request: UploadedImagesRequest):
+    # GCS 버킷에서 해당 그룹룸의 이미지 경로 구성
+    group_room_num = request.group_room_num
+    prefix = f"rooms/{group_room_num}/image/"
+    
+    # 해당 경로의 모든 블롭(파일) 나열
+    blobs = bucket.list_blobs(prefix=prefix)
+    
+    # 이미지 URL 리스트 생성
+    image_urls = []
+    for blob in blobs:
+        # 공개 URL 생성
+        image_url = f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
+        image_urls.append(image_url)
+    
+    # 이미지 URL 목록 반환
+    return {"group_room_num": group_room_num, "image_urls": image_urls}
+
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -74,7 +102,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     # 로그인 성공 처리
     return LoginResponse(
         success=True,
-        # member_num=member.MEMBER_NUM,
+        member_num=member.MEMBER_NUM,
         nickname=member.MEMBER_NICKNAME,
         profileUrl=member.PROFILE_PATH,
     )
@@ -204,7 +232,7 @@ async def create_room(
         db.refresh(group_detail_entry)  # 새로운 디테일 정보 갱신
         # GCS에서 프로필 사진 복사
         source_blob_name = f"profile/{room_data.member_num}.jpg"  # 원본 이미지 경로
-        destination_blob_name = f"rooms/{new_group_room.GROUP_ROOM_NUM}/profile/{room_data.member_num}.jpg"  # 복사할 경로
+        destination_blob_name = f"rooms/{new_group_room.GROUP_ROOM_NUM}/targets/{room_data.member_num}.jpg"  # 복사할 경로
 
         copy_profile_image_in_gcs(source_blob_name, destination_blob_name)
 
@@ -274,10 +302,83 @@ async def get_room_detail(group_room_num: int, db: Session = Depends(get_db)):
         for member in members_in_group
     ]
 
-    # 그룹 방 URL 생성
+    # 초대 링크 URL 생성 (리다이렉트 페이지를 호출하는 URL로 설정)
     BASE_URL = "http://34.80.78.104:8000"
-    group_room_url = f"{BASE_URL}/api/joinroom/{group_room_num}"
+    invite_url = f"{BASE_URL}/invite/{group_room_num}"
 
     return RoomDetailResponse(
-        group_room_num=group_room_num, group_room_url=group_room_url, members=members
+        group_room_num=group_room_num, group_room_url=invite_url, members=members
     )
+
+@router.post("/grouproom/status", response_model=GroupRoomStatusResponse)
+async def get_group_room_status(request: GroupRoomRequest, db: Session = Depends(get_db)):
+    """
+    주어진 그룹 방 번호에 대한 상태값을 반환하는 엔드포인트
+    """
+    group_room = db.query(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == request.group_room_num).first()
+    
+    if not group_room:
+        raise HTTPException(status_code=404, detail="Group room not found")
+
+    return GroupRoomStatusResponse(
+        group_room_num=group_room.GROUP_ROOM_NUM,
+        classified_finish_flag=group_room.CLASSIFIED_FINISH_FLAG,
+    )
+
+
+# 최종적으로 classify_photos 함수 수정
+
+@router.post("/classify_photos")
+async def classify_photos(request: ClassifyPhotosRequest, db: Session = Depends(get_db)):
+    group_room_num = request.group_room_num
+    target_directory = f"/rooms/{group_room_num}/target/"
+    images_directory = f"/rooms/{group_room_num}/images/"
+    output_base_directory = f"/rooms/{group_room_num}/output/"
+
+    # CLASSIFIED_FINISH_FLAG를 ACTIVE로 변경
+    group_room = db.query(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num).first()
+    if group_room:
+        group_room.CLASSIFIED_FINISH_FLAG = "ACTIVE"
+        db.commit()
+
+    # 즉시 응답 반환
+    response = {"message": "분류를 시작합니다."}
+
+    # 백그라운드에서 분류 작업 실행
+    async def background_task():
+        # 1. 이미지 다운로드
+        download_images_from_gcs(group_room_num, target_directory, images_directory)
+
+        # 2. DeepFace 모델 실행하여 사진 분류
+        classify_images(target_directory, images_directory, output_base_directory)
+
+        # 분류 완료 후 CLASSIFIED_FINISH_FLAG를 COMPLETED로 변경
+        group_room.CLASSIFIED_FINISH_FLAG = "COMPLETED"
+        db.commit()
+
+    # 백그라운드 태스크 실행
+    asyncio.create_task(background_task())
+
+    return response
+
+#### 리턴 어떻게 줄지 생각해보자
+
+@router.post("/member/group-rooms", response_model=List[dict])
+async def get_member_group_rooms(request: MemberNumRequest, db: Session = Depends(get_db)):
+    """
+    주어진 회원 번호에 대해 참가하고 있는 모든 그룹 방의 번호와 이름을 반환하는 엔드포인트
+    """
+    # TB_GROUP_DETAIL과 TB_GROUPROOM 테이블을 조인하여 해당 회원이 속한 모든 그룹 방 조회
+    member_groups = db.query(GroupDetail.GROUP_ROOM_NUM, GroupRoom.GROUP_ROOM_NAME)\
+        .join(GroupRoom, GroupDetail.GROUP_ROOM_NUM == GroupRoom.GROUP_ROOM_NUM)\
+        .filter(GroupDetail.MEMBER_NUM == request.member_num)\
+        .distinct()\
+        .all()
+    
+    # 그룹 방 정보 리스트 생성
+    group_rooms = [{"group_room_num": group.GROUP_ROOM_NUM, "group_room_name": group.GROUP_ROOM_NAME} for group in member_groups]
+
+    # 회원이 참여하는 그룹룸이 없어도 빈 배열 반환 (상태 코드 200)
+    return group_rooms
+
+
