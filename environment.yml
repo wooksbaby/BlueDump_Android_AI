@@ -195,12 +195,14 @@ dependencies:
       - absl-py==1.4.0
       - aiofiles==22.1.0
       - aiohttp-cors==0.7.0
+      - aiomysql==0.2.0
       - aiosqlite==0.20.0
       - ansicolors==1.1.8
       - apache-beam==2.46.0
       - appdirs==1.4.4
       - array-record==0.5.1
       - astunparse==1.6.3
+      - asyncmy==0.2.9
       - atpublic==4.1.0
       - babel==2.15.0
       - backports-tarfile==1.2.0
@@ -276,6 +278,7 @@ dependencies:
       - google-cloud-pubsublite==1.10.0
       - google-cloud-recommendations-ai==0.7.1
       - google-cloud-resource-manager==1.12.3
+      - google-cloud-secret-manager==2.20.2
       - google-cloud-spanner==3.47.0
       - google-cloud-storage==2.14.0
       - google-cloud-videointelligence==1.16.3
@@ -287,7 +290,7 @@ dependencies:
       - greenlet==3.0.3
       - grpc-google-iam-v1==0.12.7
       - grpc-interceptor==0.15.4
-      - grpcio==1.64.1
+      - grpcio==1.67.0
       - grpcio-status==1.48.2
       - gunicorn==23.0.0
       - gviz-api==1.10.0
@@ -356,6 +359,7 @@ dependencies:
       - mtcnn==1.0.0
       - multimethod==1.11.2
       - multipledispatch==1.0.0
+      - mysql-connector-python==9.1.0
       - nbdime==3.2.0
       - networkx==3.3
       - notebook-executor==0.2
@@ -382,6 +386,7 @@ dependencies:
       - pandas-profiling==3.6.6
       - papermill==2.6.0
       - parsy==2.1
+      - passlib==1.7.4
       - patsy==0.5.6
       - pendulum==3.0.0
       - phik==0.12.4
@@ -402,6 +407,7 @@ dependencies:
       - pydot==1.4.2
       - pyjwt==2.8.0
       - pymongo==3.13.0
+      - pymysql==1.1.1
       - pyparsing==3.1.2
       - pyproj==3.6.1
       - python-dotenv==1.0.1

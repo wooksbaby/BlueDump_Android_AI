@@ -104,9 +104,10 @@ def handle_background_tasks():
     upload_folder_to_gcs(bucket, local_folder_path, destination_blob_prefix)
     print("Finish!")
 
-
-    #!!!!!!!!!!!!!!!!!마지막으로 자바서버에 완료했다고 리퀘스트 코드 추가하기!!!!!
     return
+
+
+
 # 여기서 FastAPI 서버를 실행
 if __name__ == "__main__":
     import uvicorn

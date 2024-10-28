@@ -64,9 +64,9 @@ def download_folder_from_gcs(gcs_folder_path, local_folder_path):
         print(f"No files found in the specified GCS folder: {gcs_folder_path}")
 
 
-def download_images_from_gcs(room_id: str, target_directory: str, images_directory: str):
+def download_images_from_gcs(room_id , target_directory, images_directory):
     target_blob_prefix = f"targets/{room_id}/"
-    images_blob_prefix = f"images/{room_id}/"
+    images_blob_prefix = f"image/{room_id}/"
 
     # Download target images
     download_folder_from_gcs(target_blob_prefix, target_directory)
@@ -76,9 +76,16 @@ def download_images_from_gcs(room_id: str, target_directory: str, images_directo
 
 
 
+
+
+    
 def download_folder_from_gcs(gcs_folder_path, local_folder_path):
     """GCS 폴더에서 로컬 폴더로 모든 파일 다운로드"""
+    print(f"GCS folder path: {gcs_folder_path}")
     blobs = list(bucket.list_blobs(prefix=gcs_folder_path))  # Convert iterator to a list
+    print(f"Blobs in {gcs_folder_path}: {blobs}")
+    print(f"Local folder path: {local_folder_path}")
+
     os.makedirs(local_folder_path, exist_ok=True)
     found_files = False
 
@@ -95,3 +102,29 @@ def download_folder_from_gcs(gcs_folder_path, local_folder_path):
     if not found_files:
         print("No files found in the specified GCS folder.")
 
+
+
+async def download_blobs(group_room_num):
+    # Define the prefix based on the group room number
+    prefix = f'cloud-bucket-bluedump/rooms/{group_room_num}/'
+    # Define the destination folder to keep the same structure as GCS
+    # Get the current working directory
+    current_directory = os.getcwd()
+    destination_folder = os.path.join(current_directory, prefix)  # Combine current directory with the prefix
+
+    # List all blobs (files) in the bucket with the specified prefix
+    blobs = bucket.list_blobs(prefix=prefix)
+
+    # Download each blob to the local destination folder
+    for blob in blobs:
+        # Construct the full local path
+        local_file_path = os.path.join(destination_folder, blob.name[len(prefix):])
+
+        # Create subdirectories if necessary
+        os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+
+        # Download the blob to the local file
+        print(f'Downloading {blob.name} to {local_file_path}...')
+        blob.download_to_filename(local_file_path)
+
+    print('Download completed.')

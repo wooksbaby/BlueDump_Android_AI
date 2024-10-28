@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "gb-24-team-003",
+  "private_key_id": "695387439b0ecf7d6ec41bd840c8257dd373a38f",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDY6FlOiq7af8w7\nDiNmLclZsW4gatxeW0mdbc/F+Lk/SWxZ3efnFwndYm7iq/at0CrS/sTdMC9Ohw4Q\njOPaepFHRw3LmRfZQOImaU/SOnr6Z8iknfJi+iPFY+muMf0tmyHmXQlXmgyyubI5\nynuVMHgDqTHUFV2PjOevLuB5zhvTn4KJokXDTeVn/+8RGOAAKJQp1aJoOK1eWPXP\n1XJhQrE/F6fXRYXTpbyb9eOXDfk4CYvGXUOm4aw/m5B2XYaFEK9BURbkAA1iplWt\nDOEu1WVqLCajAtRPkMUhYET0AA/eSIjxye5CKeXuXWQhOFEgwRekgHaybCPEkmzl\n/bO8uaBdAgMBAAECggEAMDMvl0W3lcvU0yGw6ZWOmw0TywXcCuavvNlIVLaQ2bij\n6HNog0BqG4UyXVH3yseJoKHnFrzMol9eF3zrbCMU8fke3mmadFdX+c+oom+G4Oqb\nmkMT9/0cYlJxvNkUaORCe/mcKBiOLlAYBAIUBMLExJF+RmHqDMpzuIjK7p5HrjZo\n82OPpbHzMQgjK6ADLFOUTOT254DEvQQuJ1wANgmKNQQUMl5jDzkZgm3t1uketcNi\ndHxHvLUrr3RSnNdFBiR3HG2+glHmmM4P6gcOxcH6a19WXwfcnggx0s08Oo5p1fGz\n5zPF3zAEFSU8dHfdD5XNsRFr6SMd4ws9AwIqM8fb6QKBgQDuz1FoQ3CkhiQzA8I8\nvFTFzBctzEex0zyC5EiJTUa34FV3owxmN+nOiJ1d3seEwDtZ0m8Q8a5zuURoSEq3\nFU1Chel72WiB25JtnrHMNx19HeYcjZGUAYFaM+/1/U9T9fx9V7Lq3EEnGnRYEJGt\n47UKmgEIAukpGO5q3KGjjiMv1QKBgQDohW0nHRtJGbwN+Nj0f30dlGmur0ZPCmcf\nrkzCyptzYImpMXvbaj9yvE1000foTtQMoJCRFALlHxRw5RpStb05TtsMkQnMQ//0\nloTwl5qDV8dSDowqaIun/siDLOiisY10A/QKIH+Aq/ml887MssArIzzOTGLSw7QS\n31bq9MH6aQKBgQCV1j6dzLLAh+numE0nDoOiF4vzkFjrmj49Yj6g53uXo4n8prEA\n8dQhYlZar41AHd0fXomReBKdSYFCbRl0BkmTk7ILoz2PPNWDMi8ckvhNqJTZFXpi\nAw/GKRBGp8k+RPlHK992vPukLVUSbFL7aAQPwtEi1bC1uI7fPc+tb2FkgQKBgBRI\nl2YDFv9AfHQnkh16BZsP+EwhxBtfB/HujYmsjPT6peeZhnl0gkZrAMLBL5OnVL4p\nP5M4UKxWEr1qbupqKjCWnWsyN82W3PwkKUKnpvXwMVYKKNYGOrCT/D/dKgoPPQyy\nz5YWkajS17tPUmnu6e6Za1N/vFswcUP4MafbZBSJAoGAJ3Cb3jouaf3HRDBQU3Kr\ntk9Ant1ARNdHj0HGCjZPbVVxpu8WFx8UkrLhx7I8yeCHp0PPfXhR3J12XIhIhiar\nkbKU6Y1yKcWDe4y7OFuf1Xm+TXIVSFgtZ4ovQjay1H2BV88p7Z9lGVywdiQvDSKC\ndFRKepxPujUbl6wZpB7mwvA=\n-----END PRIVATE KEY-----\n",
+  "client_email": "wooksbaby@gb-24-team-003.iam.gserviceaccount.com",
+  "client_id": "106567000359863898287",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/wooksbaby%40gb-24-team-003.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

@@ -3,8 +3,20 @@ from dotenv import load_dotenv
 from google.cloud import storage
 
 # .env 파일 로드
-load_dotenv("/home/BlueDump/.env")
 
+# 여러 .env 파일 경로 정의
+env_paths = [
+    "/home/BlueDump/.env",
+    "/home/BlueDump/BlueDump_Android_AI/reboot_bl/.env",
+]
+
+# 각 .env 파일을 순차적으로 로드
+for env_path in env_paths:
+    if os.path.exists(env_path):  # 파일이 존재하는지 확인
+        load_dotenv(env_path, override=False)  # 이미 설정된 변수는 덮어쓰지 않음
+
+# 이후에 환경 변수를 사용할 수 있습니다.
+db_host = os.getenv("DB_HOST")
 
 # GCS 환경 변수 로드
 bucket_name = os.getenv("GCS_BUCKET_NAME")
