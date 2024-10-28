@@ -29,6 +29,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
 # DATABASE_URL = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@/{os.getenv('DB_NAME')}?unix_socket=/cloudsql/{os.getenv('DB_HOST')}"
 # print(DATABASE_URL)
 DATABASE_URL = "mysql+pymysql://bluedump-py:0738asdf@34.47.87.18:3306/REBOOTBDDB"
+ASYNC_DATABASE_URL = "mysql+aiomysql://bluedump-py:0738asdf@34.47.87.18:3306/REBOOTBDDB"
 
 # 전역 GCS Client 및 Bucket 설정
 client = storage.Client()

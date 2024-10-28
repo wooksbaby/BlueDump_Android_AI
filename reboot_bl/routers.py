@@ -6,8 +6,8 @@ from gcs_controller import (
     download_blobs,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from database import SessionLocal, get_db
+from sqlalchemy.future import select
+from database import SessionLocal, get_db, get_async_db
 from model import Member, GroupRoom, GroupDetail
 from schemas import (
     LoginRequest,
@@ -341,55 +341,77 @@ async def get_group_room_status(
 
 # 최종적으로 classify_photos 함수 수정
 
+
 @router.post("/classify_photos")
 async def classify_photos(
-    request: ClassifyPhotosRequest, db: AsyncSession = Depends(get_async_db)  # 비동기 세션 사용
+    request: ClassifyPhotosRequest, db: AsyncSession = Depends(get_async_db)
 ):
     group_room_num = request.group_room_num
     target_directory = f"rooms/{group_room_num}/targets/"
     images_directory = f"rooms/{group_room_num}/image/"
     output_base_directory = f"rooms/{group_room_num}/output/"
 
-    # CLASSIFIED_FINISH_FLAG를 ACTIVE로 변경
-    group_room = (
-        db.query(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num).first()
+    # GROUP_ROOM_NUM으로 GroupRoom을 조회
+    result = await db.execute(
+        select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
     )
-    if not group_room:
-        raise HTTPException(status_code=404, detail="Group room not found.")
+    group_room = await result.scalar_one_or_none()
 
+    if not group_room:
+        raise await HTTPException(status_code=404, detail="Group room not found.")
+
+    # CLASSIFIED_FINISH_FLAG를 ACTIVE로 변경
     group_room.CLASSIFIED_FINISH_FLAG = "ACTIVE"
-    db.commit()
+    await db.commit()
 
     response = {"message": "분류를 시작합니다.", "group_room_num": group_room_num}
 
-    async def background_task():
-        try:
-            # 1. 이미지 다운로드
-            print("down start")
-            print(
-                f"down start: group_room_num: {group_room_num}, target_directory: {target_directory}, images_directory: {images_directory},"
-            )
+    async def background_task(group_room_num: int):
+        async with get_async_db() as session:
+            try:
+                # 1. 이미지 다운로드
+                print("down start")
+                print(
+                    f"down start: group_room_num: {group_room_num}, target_directory: {target_directory}, images_directory: {images_directory},"
+                )
 
-            await download_blobs(group_room_num)  # 비동기 다운로드 호출
-            print("down end")
+                await download_blobs(group_room_num)  # 비동기 다운로드 호출
+                print("down end")
 
-            # 2. DeepFace 모델 실행하여 사진 분류
-            print("classify start")
-            await classify_images(target_directory, images_directory, output_base_directory)  # 비동기 분류 호출
-            print("classify end")
+                # 2. DeepFace 모델 실행하여 사진 분류
+                print("classify start")
+                await classify_images(
+                    target_directory, images_directory, output_base_directory
+                )  # 비동기 분류 호출
+                print("classify end")
 
-            # 분류 완료 후 CLASSIFIED_FINISH_FLAG를 COMPLETED로 변경
-            group_room.CLASSIFIED_FINISH_FLAG = "COMPLETED"
-            db.commit()
-        except Exception as e:
-            # 예외 발생 시 CLASSIFIED_FINISH_FLAG를 INACTIVE로 되돌리기
-            group_room.CLASSIFIED_FINISH_FLAG = "INACTIVE"
-            db.commit()
-            print(f"Error during image classification: {e}")
+                # 분류 완료 후 CLASSIFIED_FINISH_FLAG를 COMPLETED로 변경
+                result = await session.execute(
+                    select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
+                )
+                group_room_instance = result.scalar_one_or_none()
+
+                if group_room_instance:
+                    group_room_instance.CLASSIFIED_FINISH_FLAG = "COMPLETED"
+                    await session.commit()
+            except Exception as e:
+                # 예외 발생 시 CLASSIFIED_FINISH_FLAG를 INACTIVE로 되돌리기
+                result = await session.execute(
+                    select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
+                )
+                group_room_instance = result.scalar_one_or_none()
+
+                if group_room_instance:
+                    group_room_instance.CLASSIFIED_FINISH_FLAG = "INACTIVE"
+                    await session.commit()
+                print(f"Error during image classification: {e}")
 
     # 비동기 작업 생성
-    asyncio.create_task(background_task())
+    asyncio.create_task(background_task(group_room_num))
     return response
+
+
+
 
 #### 리턴 어떻게 줄지 생각해보자
 

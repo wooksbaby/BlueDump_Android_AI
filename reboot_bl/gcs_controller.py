@@ -5,7 +5,7 @@ from fastapi import UploadFile, HTTPException
 
 
 # 환경 변수 설정
-def copy_profile_image_in_gcs(source_blob_name: str, destination_blob_name: str):
+async def copy_profile_image_in_gcs(source_blob_name: str, destination_blob_name: str):
     """GCS에서 프로필 이미지를 복사하는 함수."""
     source_blob = bucket.blob(source_blob_name)
 
@@ -34,7 +34,7 @@ async def upload_file_to_gcs(file: UploadFile, destination_blob_name: str) -> bo
         return False
 
 
-def upload_folder_to_gcs(local_folder_path, destination_blob_prefix):
+async def upload_folder_to_gcs(local_folder_path, destination_blob_prefix):
     for root, _, files in os.walk(local_folder_path):
         for file_name in files:
             local_file_path = os.path.join(root, file_name)
@@ -45,7 +45,7 @@ def upload_folder_to_gcs(local_folder_path, destination_blob_prefix):
             print(f"Uploaded {local_file_path} to {gcs_blob_path}")
 
 
-def download_folder_from_gcs(gcs_folder_path, local_folder_path):
+async def download_folder_from_gcs(gcs_folder_path, local_folder_path):
     """GCS 폴더에서 로컬 폴더로 모든 파일 다운로드"""
     blobs = bucket.list_blobs(prefix=gcs_folder_path)
     os.makedirs(local_folder_path, exist_ok=True)
@@ -64,7 +64,7 @@ def download_folder_from_gcs(gcs_folder_path, local_folder_path):
         print(f"No files found in the specified GCS folder: {gcs_folder_path}")
 
 
-def download_images_from_gcs(room_id , target_directory, images_directory):
+async def download_images_from_gcs(room_id , target_directory, images_directory):
     target_blob_prefix = f"targets/{room_id}/"
     images_blob_prefix = f"image/{room_id}/"
 
@@ -79,7 +79,7 @@ def download_images_from_gcs(room_id , target_directory, images_directory):
 
 
     
-def download_folder_from_gcs(gcs_folder_path, local_folder_path):
+async def download_folder_from_gcs(gcs_folder_path, local_folder_path):
     """GCS 폴더에서 로컬 폴더로 모든 파일 다운로드"""
     print(f"GCS folder path: {gcs_folder_path}")
     blobs = list(bucket.list_blobs(prefix=gcs_folder_path))  # Convert iterator to a list

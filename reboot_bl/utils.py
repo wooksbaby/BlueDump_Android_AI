@@ -6,15 +6,15 @@ import os
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def verify_password(plain_password, hashed_password):
+async def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def hash_password(password: str) -> str:
+async def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def convert_to_jpg(image_path):
+async def convert_to_jpg(image_path):
     """이미지 파일을 JPG로 변환"""
     if not image_path.endswith('.jpg'):
         jpg_path = image_path.rsplit('.', 1)[0] + '.jpg'

@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession,
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from bdconfig import DATABASE_URL, ASYNC_DATABASE_URL  # Assuming you have an async URL
 from typing import Generator, AsyncGenerator
 

@@ -55,7 +55,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 
 @app.post("/submit/")
-def submit_form(name: str = Form(...), age: int = Form(...)):
+async def submit_form(name: str = Form(...), age: int = Form(...)):
     return {"name": name, "age": age}
 
 
