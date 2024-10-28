@@ -5,9 +5,11 @@ from gcs_controller import (
     download_images_from_gcs,
     download_blobs,
 )
+from model import GroupRoom, GroupDetail, Member  # 모델이 정의된 파일을 import
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from database import SessionLocal, get_db, get_async_db
+from database import SessionLocal, get_db, get_async_db, AsyncSessionLocal
 from model import Member, GroupRoom, GroupDetail
 from schemas import (
     LoginRequest,
@@ -25,6 +27,7 @@ from schemas import (
     UploadedImagesResponse,
     MemberNumRequest,
     ClassifyPhotosRequest,
+    UpdateStatusRequest,
 )
 from utils import verify_password, hash_password  # Assuming these functions exist
 from sqlalchemy.orm import Session
@@ -33,6 +36,7 @@ from bdconfig import bucket
 from fastapi.responses import JSONResponse
 from image_processing import classify_images
 import asyncio
+from sqlalchemy import exists
 
 
 router = APIRouter()
@@ -256,38 +260,87 @@ async def create_room(
 
 @router.post("/joinroom")
 async def join_room(request: JoinRoomRequest, db: Session = Depends(get_db)):
-    # RoomMember 모델 인스턴스 생성 (가정)
+    # 이미 해당 멤버가 그룹에 있는지 확인
+    is_member_exists = db.query(
+        exists().where(
+            (GroupDetail.GROUP_ROOM_NUM == request.group_room_num)
+            & (GroupDetail.MEMBER_NUM == request.member_num)
+        )
+    ).scalar()
+
+    if is_member_exists:
+        return JSONResponse(
+            content={
+                "success": False,
+                "message": f"Member {request.member_num} already in room {request.group_room_num}.",
+            }
+        )
+
+    # 멤버가 없는 경우 새로 추가
     new_member = GroupDetail(
         GROUP_ROOM_NUM=request.group_room_num, MEMBER_NUM=request.member_num
     )
-    # 현재 그룹의 모든 멤버 번호 가져오기
+
+    try:
+        db.add(new_member)
+        db.commit()
+        db.refresh(new_member)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to join room: " + str(e))
+
+    # 멤버 리스트 다시 가져오기
     members_in_group = (
         db.query(GroupDetail.MEMBER_NUM)
         .filter(GroupDetail.GROUP_ROOM_NUM == request.group_room_num)
         .all()
     )
-    # 멤버 번호만 리스트로 추출
     member_nums = [member[0] for member in members_in_group]
-    if request.member_num not in member_nums:  # 중복 추가 방지
-        member_nums.append(request.member_num)
-    try:
-        # 세션에 추가
-        db.add(new_member)
-        db.commit()  # 변경 사항 커밋
-        db.refresh(new_member)  # 새로 생성된 인스턴스 정보 업데이트
-    except Exception as e:
-        db.rollback()  # 에러 발생 시 롤백
-        raise HTTPException(status_code=500, detail="Failed to join room: " + str(e))
 
-    # 성공 응답
     return JSONResponse(
         content={
             "success": True,
             "message": f"Member {request.member_num} added to room {request.group_room_num}.",
             "group_room_num": request.group_room_num,
-            "member_nums": member_nums,  # 해당 그룹의 모든 멤버 번호 리스트 반환
+            "member_nums": member_nums,
         }
     )
+
+
+# @router.post("/joinroom")
+# async def join_room(request: JoinRoomRequest, db: Session = Depends(get_db)):
+#     # RoomMember 모델 인스턴스 생성 (가정)
+#     new_member = GroupDetail(
+#         GROUP_ROOM_NUM=request.group_room_num, MEMBER_NUM=request.member_num
+#     )
+#     # 현재 그룹의 모든 멤버 번호 가져오기
+#     members_in_group = (
+#         db.query(GroupDetail.MEMBER_NUM)
+#         .filter(GroupDetail.GROUP_ROOM_NUM == request.group_room_num)
+#         .all()
+#     )
+#     # 멤버 번호만 리스트로 추출
+#     member_nums = [member[0] for member in members_in_group]
+#     if request.member_num not in member_nums:  # 중복 추가 방지
+#         member_nums.append(request.member_num)
+#     try:
+#         # 세션에 추가
+#         db.add(new_member)
+#         db.commit()  # 변경 사항 커밋
+#         db.refresh(new_member)  # 새로 생성된 인스턴스 정보 업데이트
+#     except Exception as e:
+#         db.rollback()  # 에러 발생 시 롤백
+#         raise HTTPException(status_code=500, detail="Failed to join room: " + str(e))
+
+#     # 성공 응답
+#     return JSONResponse(
+#         content={
+#             "success": True,
+#             "message": f"Member {request.member_num} added to room {request.group_room_num}.",
+#             "group_room_num": request.group_room_num,
+#             "member_nums": member_nums,  # 해당 그룹의 모든 멤버 번호 리스트 반환
+#         }
+#     )
 
 
 @router.get("/roomdetail", response_model=RoomDetailResponse)
@@ -339,7 +392,125 @@ async def get_group_room_status(
     )
 
 
-# 최종적으로 classify_photos 함수 수정
+#### 리턴 어떻게 줄지 생각해보자
+
+
+@router.post("/member/group-rooms", response_model=List[dict])
+async def get_member_group_rooms(
+    request: MemberNumRequest, db: Session = Depends(get_db)
+):
+    """
+    주어진 회원 번호에 대해 참가하고 있는 모든 그룹 방의 번호와 이름을 반환하는 엔드포인트
+    """
+    # TB_GROUP_DETAIL과 TB_GROUPROOM 테이블을 조인하여 해당 회원이 속한 모든 그룹 방 조회
+    member_groups = (
+        db.query(GroupDetail.GROUP_ROOM_NUM, GroupRoom.GROUP_ROOM_NAME)
+        .join(GroupRoom, GroupDetail.GROUP_ROOM_NUM == GroupRoom.GROUP_ROOM_NUM)
+        .filter(GroupDetail.MEMBER_NUM == request.member_num)
+        .distinct()
+        .all()
+    )
+
+    # 그룹 방 정보 리스트 생성
+    group_rooms = [
+        {
+            "group_room_num": group.GROUP_ROOM_NUM,
+            "group_room_name": group.GROUP_ROOM_NAME,
+        }
+        for group in member_groups
+    ]
+
+    # 회원이 참여하는 그룹룸이 없어도 빈 배열 반환 (상태 코드 200)
+    return group_rooms
+
+
+# 그룹룸 상태 업데이트 엔드포인트 (POST 메소드)
+
+
+@router.post("/group-room/update-status")
+async def update_group_room_status(
+    request: UpdateStatusRequest, db: AsyncSession = Depends(get_async_db)
+):
+    # 가능한 상태값 리스트
+    valid_statuses = ["INACTIVE", "ACTIVE", "COMPLETED"]
+
+    if request.status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid status. Must be one of INACTIVE, ACTIVE, or COMPLETED",
+        )
+
+    # 해당 grouproom_num 검색
+    result = await db.execute(
+        select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == request.group_room_num)
+    )
+    group_room = result.scalars().first()  # 첫 번째 결과를 가져옵니다.
+
+    # 그룹룸 존재 여부 확인
+    if not group_room:
+        raise HTTPException(status_code=404, detail="Group room not found")
+
+    # 상태 업데이트
+    group_room.CLASSIFIED_FINISH_FLAG = request.status
+    await db.commit()  # 변경 사항 저장
+
+    return {"grouproom_num": request.grouproom_num, "updated_status": request.status}
+
+
+@router.post("/test_classify_photos")
+async def test_classify_photos(
+    request: ClassifyPhotosRequest, db: AsyncSession = Depends(get_async_db)
+):
+    # 요청으로부터 group_room_num 가져오기
+    group_room_num = request.group_room_num
+    delay = request.delay
+
+    # 해당 group_room_num 검색
+    result = await db.execute(
+        select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
+    )
+    group_room = result.scalars().first()  # 첫 번째 결과를 가져옵니다.
+
+    # 그룹룸 존재 여부 확인
+    if not group_room:
+        raise HTTPException(status_code=404, detail="Group room not found")
+
+    # 그룹룸의 CLASSIFIED_FINISH_FLAG를 'ACTIVE'로 변경
+    group_room.CLASSIFIED_FINISH_FLAG = "ACTIVE"
+    await db.commit()  # 변경사항을 커밋합니다.
+
+    # 즉시 응답
+    response = {"message": f"Received group_room_num: {group_room_num}"}
+
+    # 비동기로 20초 대기 후 플래그 변경
+    asyncio.create_task(
+        update_flag_after_delay(group_room_num, delay)
+    )  # group_room_num을 전달
+
+    return response
+
+
+async def update_flag_after_delay(group_room_num: int, delay: int):
+    # 비동기 세션을 새로 생성합니다.
+    async with AsyncSessionLocal() as db:  # AsyncSessionLocal이 설정된 곳에서 가져옵니다.
+        # 지연 후에 플래그 업데이트 작업을 수행합니다.
+        await asyncio.sleep(delay)
+
+        # GroupRoom을 선택합니다.
+        result = await db.execute(
+            select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
+        )
+        group_room = result.scalars().first()
+
+        if group_room is None:
+            return {"error": "Group room not found"}
+
+        # 여기에 플래그를 업데이트하는 로직 추가
+        group_room.CLASSIFIED_FINISH_FLAG = (
+            "COMPLETED"  # 예시로 플래그를 변경합니다. (ACTIVE -> INACTIVE로 변경)
+        )
+
+        await db.commit()  # 커밋하여 변경 사항을 저장합니다.
 
 
 @router.post("/classify_photos")
@@ -347,6 +518,7 @@ async def classify_photos(
     request: ClassifyPhotosRequest, db: AsyncSession = Depends(get_async_db)
 ):
     group_room_num = request.group_room_num
+
     target_directory = f"rooms/{group_room_num}/targets/"
     images_directory = f"rooms/{group_room_num}/image/"
     output_base_directory = f"rooms/{group_room_num}/output/"
@@ -409,37 +581,3 @@ async def classify_photos(
     # 비동기 작업 생성
     asyncio.create_task(background_task(group_room_num))
     return response
-
-
-
-
-#### 리턴 어떻게 줄지 생각해보자
-
-
-@router.post("/member/group-rooms", response_model=List[dict])
-async def get_member_group_rooms(
-    request: MemberNumRequest, db: Session = Depends(get_db)
-):
-    """
-    주어진 회원 번호에 대해 참가하고 있는 모든 그룹 방의 번호와 이름을 반환하는 엔드포인트
-    """
-    # TB_GROUP_DETAIL과 TB_GROUPROOM 테이블을 조인하여 해당 회원이 속한 모든 그룹 방 조회
-    member_groups = (
-        db.query(GroupDetail.GROUP_ROOM_NUM, GroupRoom.GROUP_ROOM_NAME)
-        .join(GroupRoom, GroupDetail.GROUP_ROOM_NUM == GroupRoom.GROUP_ROOM_NUM)
-        .filter(GroupDetail.MEMBER_NUM == request.member_num)
-        .distinct()
-        .all()
-    )
-
-    # 그룹 방 정보 리스트 생성
-    group_rooms = [
-        {
-            "group_room_num": group.GROUP_ROOM_NUM,
-            "group_room_name": group.GROUP_ROOM_NAME,
-        }
-        for group in member_groups
-    ]
-
-    # 회원이 참여하는 그룹룸이 없어도 빈 배열 반환 (상태 코드 200)
-    return group_rooms

@@ -91,3 +91,10 @@ class MemberNumRequest(BaseModel):
     member_num: int
 class ClassifyPhotosRequest(BaseModel):
     group_room_num: int
+    delay: int
+
+
+    
+class UpdateStatusRequest(BaseModel):
+    group_room_num: int
+    status: str

@@ -41,7 +41,7 @@ class GroupRoom(Base):
         back_populates="group_room",
     )
 
-
+    
 class GroupDetail(Base):
     __tablename__ = "TB_GROUP_DETAIL"
 
