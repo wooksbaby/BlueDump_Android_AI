@@ -110,4 +110,4 @@ def handle_background_tasks():
 # 여기서 FastAPI 서버를 실행
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host='0.0.0.0', port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, log_level="debug") 

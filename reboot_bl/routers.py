@@ -331,34 +331,43 @@ async def get_group_room_status(request: GroupRoomRequest, db: Session = Depends
 @router.post("/classify_photos")
 async def classify_photos(request: ClassifyPhotosRequest, db: Session = Depends(get_db)):
     group_room_num = request.group_room_num
-    target_directory = f"/rooms/{group_room_num}/target/"
-    images_directory = f"/rooms/{group_room_num}/images/"
+    target_directory = f"/rooms/{group_room_num}/targets/"
+    images_directory = f"/rooms/{group_room_num}/image/"
     output_base_directory = f"/rooms/{group_room_num}/output/"
 
     # CLASSIFIED_FINISH_FLAG를 ACTIVE로 변경
     group_room = db.query(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num).first()
-    if group_room:
-        group_room.CLASSIFIED_FINISH_FLAG = "ACTIVE"
-        db.commit()
+    if not group_room:
+        raise HTTPException(status_code=404, detail="Group room not found.")
+    
+    group_room.CLASSIFIED_FINISH_FLAG = "ACTIVE"
+    db.commit()
 
-    # 즉시 응답 반환
-    response = {"message": "분류를 시작합니다."}
+    response = {"message": "분류를 시작합니다.", "group_room_num": group_room_num}
 
-    # 백그라운드에서 분류 작업 실행
     async def background_task():
-        # 1. 이미지 다운로드
-        download_images_from_gcs(group_room_num, target_directory, images_directory)
+        try:
+            # 1. 이미지 다운로드
+            print('down start')
+            await download_images_from_gcs(group_room_num, target_directory, images_directory)  # Await if it's an async function
+            print('down end')
 
-        # 2. DeepFace 모델 실행하여 사진 분류
-        classify_images(target_directory, images_directory, output_base_directory)
+            # 2. DeepFace 모델 실행하여 사진 분류
+            print('classify start')
+            await classify_images(target_directory, images_directory, output_base_directory)  # Await if it's an async function
+            print('classify end')
 
-        # 분류 완료 후 CLASSIFIED_FINISH_FLAG를 COMPLETED로 변경
-        group_room.CLASSIFIED_FINISH_FLAG = "COMPLETED"
-        db.commit()
+            # 분류 완료 후 CLASSIFIED_FINISH_FLAG를 COMPLETED로 변경
+            group_room.CLASSIFIED_FINISH_FLAG = "COMPLETED"
+            db.commit()
+        except Exception as e:
+            # 예외 발생 시 CLASSIFIED_FINISH_FLAG를 INACTIVE로 되돌리기
+            group_room.CLASSIFIED_FINISH_FLAG = "INACTIVE"
+            db.commit()
+            print(f"Error during image classification: {e}")
 
-    # 백그라운드 태스크 실행
+    # Assuming `classify_images` is synchronous
     asyncio.create_task(background_task())
-
     return response
 
 #### 리턴 어떻게 줄지 생각해보자
