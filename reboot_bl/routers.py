@@ -2,9 +2,9 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form, R
 from gcs_controller import (
     upload_file_to_gcs,
     copy_profile_image_in_gcs,
-    download_images_from_gcs,
     download_blobs,
 )
+import os
 from model import GroupRoom, GroupDetail, Member  # 모델이 정의된 파일을 import
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,13 +28,17 @@ from schemas import (
     MemberNumRequest,
     ClassifyPhotosRequest,
     UpdateStatusRequest,
+    TestClassifyPhotosRequest,
+    UploadedImages,
+    MemberImages,
 )
-from utils import verify_password, hash_password  # Assuming these functions exist
+
+# from utils import verify_password, hash_password, cur_dir  # Assuming these functions exist
 from sqlalchemy.orm import Session
 from typing import List, Union
 from bdconfig import bucket
 from fastapi.responses import JSONResponse
-from image_processing import classify_images
+from image_processing import classify_images_with_options, ensure_directory_exists
 import asyncio
 from sqlalchemy import exists
 
@@ -45,6 +49,7 @@ router = APIRouter()
 @router.post("/upload")
 async def upload_profile_images(
     grouproom_num: str = Form(...),  # 클라이언트에서 GROUPROOM_NUM을 문자열로 받음
+    member_num: int = Form(...),  # 클라이언트에서 MEMBER_NUM을 정수로 받음
     files: List[UploadFile] = File(...),
 ):
 
@@ -52,7 +57,7 @@ async def upload_profile_images(
 
     for file in files:
         # 파일 이름을 GCS에 저장할 경로로 설정 (GROUPROOM_NUM을 포함)
-        destination_blob_name = f"rooms/{grouproom_num}/image/{file.filename}"  # 각 파일마다 고유한 경로 설정
+        destination_blob_name = f"rooms/{grouproom_num}/image/{member_num}/{file.filename}"  # 각 파일마다 고유한 경로 설정
 
         # 파일 업로드 처리
         upload_result = await upload_file_to_gcs(file, destination_blob_name)
@@ -69,11 +74,13 @@ async def upload_profile_images(
     return {"message": "Images uploaded successfully", "urls": urls}
 
 
-@router.post("/uploaded_images", response_model=UploadedImagesResponse)
+@router.post("/uploaded_images", response_model=UploadedImages)
 async def get_uploaded_images(request: UploadedImagesRequest):
     # GCS 버킷에서 해당 그룹룸의 이미지 경로 구성
     group_room_num = request.group_room_num
-    prefix = f"rooms/{group_room_num}/image/"
+    member_num = request.member_num
+
+    prefix = f"rooms/{group_room_num}/image/{member_num}/"
 
     # 해당 경로의 모든 블롭(파일) 나열
     blobs = bucket.list_blobs(prefix=prefix)
@@ -86,7 +93,123 @@ async def get_uploaded_images(request: UploadedImagesRequest):
         image_urls.append(image_url)
 
     # 이미지 URL 목록 반환
-    return {"group_room_num": group_room_num, "image_urls": image_urls}
+    return {
+        "group_room_num": group_room_num,
+        "member_num": member_num,
+        "image_urls": image_urls,
+    }
+
+
+@router.post("/classified_images", response_model=UploadedImagesResponse)
+async def get_classified_images(
+    request: UploadedImagesRequest,
+    db: Session = Depends(get_db),  # DB 세션을 사용해 GROUP_ROOM_OPTION 값 확인
+):
+    # 요청에서 그룹룸 번호와 멤버 번호 추출
+    group_room_num = request.group_room_num
+    member_num = request.member_num
+
+    # 그룹룸 옵션 확인
+    group_room = db.query(GroupRoom).filter_by(GROUP_ROOM_NUM=group_room_num).first()
+
+    if group_room is None:
+        return {"message": "Group room not found."}
+
+    # 옵션에 따라 prefix 설정
+    if group_room.GROUP_ROOM_OPTION:  # True인 경우 모든 멤버 결과 반환
+        prefix = f"rooms/{group_room_num}/results/"
+    else:  # False인 경우 특정 멤버 결과만 반환
+        prefix = f"rooms/{group_room_num}/results/{member_num}/"
+
+    # 해당 경로의 모든 블롭(파일) 나열
+    blobs = bucket.list_blobs(prefix=prefix)
+
+    # 멤버별 이미지 URL 딕셔너리 생성
+    member_images = {}
+    for blob in blobs:
+        # 확장자가 .jpg인 파일만 추가
+        if blob.name.lower().endswith(".jpg"):
+            # /로 분리하여 유저 넘버 추출
+            parts = blob.name.split("/")
+            blob_member_num = parts[3]  # results 다음의 유저넘버 부분 추출
+            image_url = f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
+
+            # 각 멤버에 대한 이미지 URL 리스트에 추가
+            if blob_member_num not in member_images:
+                member_images[blob_member_num] = []  # 새 멤버 초기화
+            member_images[blob_member_num].append(image_url)
+
+    # 응답 형식 변환
+    member_images_list = []
+
+    for member_id, images in member_images.items():
+        # 각 멤버에 대한 URL과 닉네임을 DB에서 가져오기
+        member_data = (
+            db.query(Member).filter_by(MEMBER_NUM=int(member_id)).first()
+        )  # MEMBER_NUM을 사용하여 멤버 정보 조회
+
+        # member_url과 nickname이 존재하면 가져오고, 없으면 None으로 설정
+        member_profile_url = (
+            member_data.PROFILE_PATH if member_data else None
+        )  # Assume PROFILE_PATH is a field in the Member model
+        member_nickname = (
+            member_data.MEMBER_NICKNAME if member_data else None
+        )  # 추가된 닉네임 필드
+
+        member_images_list.append(
+            {
+                "member_id": int(member_id),  # 멤버 ID는 정수형
+                "images": images,  # 해당 멤버의 이미지 리스트
+                "member_url": member_profile_url,  # 추가된 member_url
+                "nickname": member_nickname,  # 추가된 닉네임
+            }
+        )
+
+    # 최종 응답 반환
+    return {
+        "group_room_num": group_room_num,
+        "member_images": member_images_list,  # 요청한 형식으로 응답 구성
+    }
+
+
+# @router.post("/classified_images", response_model=UploadedImagesResponse)
+# async def get_classified_images(
+#     request: UploadedImagesRequest,
+#     db: Session = Depends(get_db)  # DB 세션을 사용해 GROUP_ROOM_OPTION 값 확인
+# ):
+#     # 요청에서 그룹룸 번호와 멤버 번호 추출
+#     group_room_num = request.group_room_num
+#     member_num = request.member_num
+
+#     # 그룹룸 옵션 확인
+#     group_room = db.query(GroupRoom).filter_by(GROUP_ROOM_NUM=group_room_num).first()
+
+#     if group_room is None:
+#         return {"message": "Group room not found."}
+
+#     # 옵션에 따라 prefix 설정
+#     if group_room.GROUP_ROOM_OPTION:  # True인 경우 모든 멤버 결과 반환
+#         prefix = f"rooms/{group_room_num}/results/"
+#     else:  # False인 경우 특정 멤버 결과만 반환
+#         prefix = f"rooms/{group_room_num}/results/{member_num}/"
+
+#     # 해당 경로의 모든 블롭(파일) 나열
+#     blobs = bucket.list_blobs(prefix=prefix)
+
+#     # 이미지 URL 리스트 생성
+#     image_urls = []
+#     for blob in blobs:
+#         # 확장자가 .jpg인 파일만 추가
+#         if blob.name.lower().endswith(".jpg"):
+#             image_url = f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
+#             image_urls.append(image_url)
+
+#     # 이미지 URL 목록 반환
+#     return {
+#         "group_room_num": group_room_num,
+#         "member_num": member_num,
+#         "image_urls": image_urls
+#     }
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -255,6 +378,7 @@ async def create_room(
     return CreateRoomResponse(
         success=True,
         group_room_num=new_group_room.GROUP_ROOM_NUM,  # GROUP_ROOM_NUM 반환
+        option=room_data.option,  # GROUP_ROOM_OPTION 반환
     )
 
 
@@ -305,42 +429,6 @@ async def join_room(request: JoinRoomRequest, db: Session = Depends(get_db)):
             "member_nums": member_nums,
         }
     )
-
-
-# @router.post("/joinroom")
-# async def join_room(request: JoinRoomRequest, db: Session = Depends(get_db)):
-#     # RoomMember 모델 인스턴스 생성 (가정)
-#     new_member = GroupDetail(
-#         GROUP_ROOM_NUM=request.group_room_num, MEMBER_NUM=request.member_num
-#     )
-#     # 현재 그룹의 모든 멤버 번호 가져오기
-#     members_in_group = (
-#         db.query(GroupDetail.MEMBER_NUM)
-#         .filter(GroupDetail.GROUP_ROOM_NUM == request.group_room_num)
-#         .all()
-#     )
-#     # 멤버 번호만 리스트로 추출
-#     member_nums = [member[0] for member in members_in_group]
-#     if request.member_num not in member_nums:  # 중복 추가 방지
-#         member_nums.append(request.member_num)
-#     try:
-#         # 세션에 추가
-#         db.add(new_member)
-#         db.commit()  # 변경 사항 커밋
-#         db.refresh(new_member)  # 새로 생성된 인스턴스 정보 업데이트
-#     except Exception as e:
-#         db.rollback()  # 에러 발생 시 롤백
-#         raise HTTPException(status_code=500, detail="Failed to join room: " + str(e))
-
-#     # 성공 응답
-#     return JSONResponse(
-#         content={
-#             "success": True,
-#             "message": f"Member {request.member_num} added to room {request.group_room_num}.",
-#             "group_room_num": request.group_room_num,
-#             "member_nums": member_nums,  # 해당 그룹의 모든 멤버 번호 리스트 반환
-#         }
-#     )
 
 
 @router.get("/roomdetail", response_model=RoomDetailResponse)
@@ -454,12 +542,12 @@ async def update_group_room_status(
     group_room.CLASSIFIED_FINISH_FLAG = request.status
     await db.commit()  # 변경 사항 저장
 
-    return {"grouproom_num": request.grouproom_num, "updated_status": request.status}
+    return {"grouproom_num": request.group_room_num, "updated_status": request.status}
 
 
 @router.post("/test_classify_photos")
 async def test_classify_photos(
-    request: ClassifyPhotosRequest, db: AsyncSession = Depends(get_async_db)
+    request: TestClassifyPhotosRequest, db: AsyncSession = Depends(get_async_db)
 ):
     # 요청으로부터 group_room_num 가져오기
     group_room_num = request.group_room_num
@@ -519,65 +607,95 @@ async def classify_photos(
 ):
     group_room_num = request.group_room_num
 
-    target_directory = f"rooms/{group_room_num}/targets/"
-    images_directory = f"rooms/{group_room_num}/image/"
-    output_base_directory = f"rooms/{group_room_num}/output/"
-
     # GROUP_ROOM_NUM으로 GroupRoom을 조회
     result = await db.execute(
         select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
     )
-    group_room = await result.scalar_one_or_none()
+    group_room = result.scalar_one_or_none()
 
     if not group_room:
-        raise await HTTPException(status_code=404, detail="Group room not found.")
+        raise HTTPException(status_code=404, detail="Group room not found.")
 
     # CLASSIFIED_FINISH_FLAG를 ACTIVE로 변경
     group_room.CLASSIFIED_FINISH_FLAG = "ACTIVE"
     await db.commit()
 
-    response = {"message": "분류를 시작합니다.", "group_room_num": group_room_num}
+    response = {f"message:{group_room_num}번방 분류를 시작합니다. "}
 
-    async def background_task(group_room_num: int):
-        async with get_async_db() as session:
-            try:
-                # 1. 이미지 다운로드
-                print("down start")
-                print(
-                    f"down start: group_room_num: {group_room_num}, target_directory: {target_directory}, images_directory: {images_directory},"
-                )
+ # db를 background_task에 전달
+    asyncio.create_task(background_task(group_room_num, db))
 
-                await download_blobs(group_room_num)  # 비동기 다운로드 호출
-                print("down end")
-
-                # 2. DeepFace 모델 실행하여 사진 분류
-                print("classify start")
-                await classify_images(
-                    target_directory, images_directory, output_base_directory
-                )  # 비동기 분류 호출
-                print("classify end")
-
-                # 분류 완료 후 CLASSIFIED_FINISH_FLAG를 COMPLETED로 변경
-                result = await session.execute(
-                    select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
-                )
-                group_room_instance = result.scalar_one_or_none()
-
-                if group_room_instance:
-                    group_room_instance.CLASSIFIED_FINISH_FLAG = "COMPLETED"
-                    await session.commit()
-            except Exception as e:
-                # 예외 발생 시 CLASSIFIED_FINISH_FLAG를 INACTIVE로 되돌리기
-                result = await session.execute(
-                    select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
-                )
-                group_room_instance = result.scalar_one_or_none()
-
-                if group_room_instance:
-                    group_room_instance.CLASSIFIED_FINISH_FLAG = "INACTIVE"
-                    await session.commit()
-                print(f"Error during image classification: {e}")
-
-    # 비동기 작업 생성
-    asyncio.create_task(background_task(group_room_num))
     return response
+
+
+
+
+async def background_task(group_room_num: int, db: AsyncSession):
+    async with db.begin():  # Transaction을 시작합니다.
+        try:
+            await asyncio.gather(
+                download_blobs(group_room_num),
+            )
+        except Exception as e:
+            print(f"Error during image classification: {e}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# async def background_task(group_room_num: int, db: AsyncSession):
+#     async with db.begin():  # Transaction을 시작합니다.
+#         try:
+#             await asyncio.gather(
+#                 download_blobs(group_room_num),
+#                 classify_images_with_options(group_room_num),
+#             )
+#             # 분류 완료 후 CLASSIFIED_FINISH_FLAG를 COMPLETED로 변경
+#             group_room_instance = await get_group_room_instance(group_room_num, db)
+
+#             if group_room_instance:
+#                 group_room_instance.CLASSIFIED_FINISH_FLAG = "COMPLETED"
+#                 await db.commit()  # 변경사항 커밋
+#             else:
+#                 print(f"No group room found for number: {group_room_num}")
+
+#         except Exception as e:
+#             # 예외 발생 시 CLASSIFIED_FINISH_FLAG를 INACTIVE로 되돌리기
+#             await set_classified_flag_to_inactive(group_room_num, db)
+#             print(f"Error during image classification: {e}")
+
+
+# async def get_group_room_instance(group_room_num: int, db: AsyncSession):
+#     """특정 group_room_num의 인스턴스를 가져오는 함수."""
+#     result = await db.execute(
+#         select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
+#     )
+#     return result.scalar_one_or_none()
+
+
+# async def set_classified_flag_to_inactive(group_room_num: int, db: AsyncSession):
+#     """CLASSIFIED_FINISH_FLAG를 INACTIVE로 변경하는 함수."""
+#     group_room_instance = await get_group_room_instance(group_room_num, db)
+
+#     if group_room_instance:
+#         group_room_instance.CLASSIFIED_FINISH_FLAG = "INACTIVE"
+#         await db.commit()  # 변경사항 커밋
+#     else:
+#         print(f"No group room found to set inactive for number: {group_room_num}")

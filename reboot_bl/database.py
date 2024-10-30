@@ -12,7 +12,7 @@ async_engine = create_async_engine(ASYNC_DATABASE_URL)  # 비동기 엔진
 
 # 동기 및 비동기 세션 생성
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-AsyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=async_engine, class_=AsyncSession)
+AsyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=async_engine, class_=AsyncSession,expire_on_commit=False)
 
 Base = declarative_base()
 

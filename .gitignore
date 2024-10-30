@@ -181,4 +181,10 @@ BlueDump_Android_AI/classified_images_new/
 
 /home/BlueDump/BlueDump_Android_AI/api_test.py
 
-BlueDump_Android_AI/myenv
+BlueDump_Android_AI/reboot_bl/keys
+
+reboot_bl/keys
+/keys
+*.env
+/reboot_bl/.env
+*.json

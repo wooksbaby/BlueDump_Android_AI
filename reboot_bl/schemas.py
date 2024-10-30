@@ -52,6 +52,7 @@ class CreateRoomRequest(BaseModel):
 class CreateRoomResponse(BaseModel):
     success: bool
     group_room_num: int
+    option: bool  
     # group_room_url: str  # 필요시 사용할 수 있도록 주석 처리
 
 
@@ -78,22 +79,41 @@ class GroupRoomStatusResponse(BaseModel):
     classified_finish_flag: str
 
 # 업로드된 이미지 응답 모델
+
 class UploadedImagesRequest(BaseModel):
     group_room_num: int
+    member_num: int
+
+class MemberImages(BaseModel):
+    member_id: int
+    member_url: str
+    nickname : str
+    images: List[str]
 
 class UploadedImagesResponse(BaseModel):
     group_room_num: int
-    image_urls: List[str]
+
+    member_images: List[MemberImages]  # Changed to a list of MemberImages
+
+
+
     
-    
+class UploadedImages(BaseModel):
+    group_room_num: int
+    member_num: int
+    image_urls: List[str]  # Changed to a list of MemberImages
+
 class MemberNumRequest(BaseModel):
 
     member_num: int
-class ClassifyPhotosRequest(BaseModel):
+
+
+class TestClassifyPhotosRequest(BaseModel):
     group_room_num: int
     delay: int
 
-
+class ClassifyPhotosRequest(BaseModel):
+    group_room_num: int
     
 class UpdateStatusRequest(BaseModel):
     group_room_num: int
