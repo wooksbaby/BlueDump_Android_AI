@@ -1,4 +1,12 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form, Request
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    Depends,
+    HTTPException,
+    Form,
+    BackgroundTasks,
+)
 from gcs_controller import (
     upload_file_to_gcs,
     copy_profile_image_in_gcs,
@@ -38,9 +46,10 @@ from sqlalchemy.orm import Session
 from typing import List, Union
 from bdconfig import bucket
 from fastapi.responses import JSONResponse
-from image_processing import classify_images_with_options, ensure_directory_exists
+from image_processing import classify_images_with_options,classify_images
 import asyncio
 from sqlalchemy import exists
+import threading
 
 
 router = APIRouter()
@@ -603,7 +612,9 @@ async def update_flag_after_delay(group_room_num: int, delay: int):
 
 @router.post("/classify_photos")
 async def classify_photos(
-    request: ClassifyPhotosRequest, db: AsyncSession = Depends(get_async_db)
+    request: ClassifyPhotosRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_async_db),  # 비동기 세션 사용
 ):
     group_room_num = request.group_room_num
 
@@ -620,82 +631,31 @@ async def classify_photos(
     group_room.CLASSIFIED_FINISH_FLAG = "ACTIVE"
     await db.commit()
 
-    response = {f"message:{group_room_num}번방 분류를 시작합니다. "}
+    # 응답 메시지
+    response = {"message": f"{group_room_num}번방 분류를 시작합니다."}
 
- # db를 background_task에 전달
-    asyncio.create_task(background_task(group_room_num, db))
-
+    # 백그라운드 작업을 BackgroundTasks로 수행
+    background_tasks.add_task(background_task, group_room_num, db)  # db 인자 전달
     return response
 
 
+def background_task(group_room_num: int, db: Session):
+    print("background task started")
+    # 트랜잭션 시작
+    try:
+        # 이미지 다운로드
+        download_blobs(group_room_num)  # 다운로드 함수 실행
 
+        # 다운로드한 이미지 파일 목록을 가져옴
+        cur_dir = os.getcwd()
+        target_dir = os.path.join(cur_dir, str(group_room_num), 'targets')
+        image_dir = os.path.join(cur_dir, str(group_room_num), 'image')
+        outputs = os.path.join(cur_dir, str(group_room_num), 'outputs')
+        classify_images(target_dir, image_dir, outputs)  # 분류 실행
+        print("분류완료")
 
-async def background_task(group_room_num: int, db: AsyncSession):
-    async with db.begin():  # Transaction을 시작합니다.
-        try:
-            await asyncio.gather(
-                download_blobs(group_room_num),
-            )
-        except Exception as e:
-            print(f"Error during image classification: {e}")
+        # classify_images_with_options(target_dir, image_dir, outputs)  # 분류 실행
+        
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# async def background_task(group_room_num: int, db: AsyncSession):
-#     async with db.begin():  # Transaction을 시작합니다.
-#         try:
-#             await asyncio.gather(
-#                 download_blobs(group_room_num),
-#                 classify_images_with_options(group_room_num),
-#             )
-#             # 분류 완료 후 CLASSIFIED_FINISH_FLAG를 COMPLETED로 변경
-#             group_room_instance = await get_group_room_instance(group_room_num, db)
-
-#             if group_room_instance:
-#                 group_room_instance.CLASSIFIED_FINISH_FLAG = "COMPLETED"
-#                 await db.commit()  # 변경사항 커밋
-#             else:
-#                 print(f"No group room found for number: {group_room_num}")
-
-#         except Exception as e:
-#             # 예외 발생 시 CLASSIFIED_FINISH_FLAG를 INACTIVE로 되돌리기
-#             await set_classified_flag_to_inactive(group_room_num, db)
-#             print(f"Error during image classification: {e}")
-
-
-# async def get_group_room_instance(group_room_num: int, db: AsyncSession):
-#     """특정 group_room_num의 인스턴스를 가져오는 함수."""
-#     result = await db.execute(
-#         select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
-#     )
-#     return result.scalar_one_or_none()
-
-
-# async def set_classified_flag_to_inactive(group_room_num: int, db: AsyncSession):
-#     """CLASSIFIED_FINISH_FLAG를 INACTIVE로 변경하는 함수."""
-#     group_room_instance = await get_group_room_instance(group_room_num, db)
-
-#     if group_room_instance:
-#         group_room_instance.CLASSIFIED_FINISH_FLAG = "INACTIVE"
-#         await db.commit()  # 변경사항 커밋
-#     else:
-#         print(f"No group room found to set inactive for number: {group_room_num}")
+    except Exception as e:
+        print(f"이미지 분류 중 오류 발생: {e}")

@@ -3,10 +3,13 @@ from bdconfig import bucket  # 전역 객체 불러오기
 from fastapi import UploadFile, HTTPException
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from PIL import Image
 
 executor = ThreadPoolExecutor()
-from image_processing import ensure_directory_exists
-
+def ensure_directory_exists(directory):
+    """Ensure that a directory exists; if not, create it."""
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 # 환경 변수 설정
 async def copy_profile_image_in_gcs(source_blob_name: str, destination_blob_name: str):
@@ -66,84 +69,75 @@ async def upload_folder_to_gcs(local_folder_path: str, group_room_num: int) -> N
     print("All files uploaded successfully.")
 
 
-async def download_folder_from_gcs(gcs_folder_path, local_folder_path):
-    blobs = list(bucket.list_blobs(prefix=gcs_folder_path))
-    os.makedirs(local_folder_path, exist_ok=True)
-
-    tasks = []
-    for blob in blobs:
-        file_name = os.path.basename(blob.name)
-        if file_name:
-            local_file_path = os.path.join(local_folder_path, file_name)
-            task = asyncio.get_running_loop().run_in_executor(
-                executor, blob.download_to_filename, local_file_path
-            )
-            tasks.append(task)
-
-    await asyncio.gather(*tasks)
-    if not tasks:
-        print(f"No files found in the specified GCS folder: {gcs_folder_path}")
-    else:
-        print("All files downloaded successfully.")
-
-
-async def download_blob(blob, destination_file_name):
-    """Download a blob from GCS asynchronously."""
+def download_blob(blob, destination_file_name):
+    """Download a blob from GCS synchronously and convert to JPEG if it's an image."""
     try:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, blob.download_to_filename, destination_file_name)
+        # 다운로드할 파일의 디렉토리 확인 및 생성
+        ensure_directory_exists(os.path.dirname(destination_file_name))
+
+        # Blob을 다운로드
+        blob.download_to_filename(destination_file_name)
+        print(f"Downloaded {blob.name} to {destination_file_name}")
+
+        # 이미지 확장자 확인
+        _, ext = os.path.splitext(destination_file_name)
+        image_extensions = {'.png', '.bmp', '.gif', '.tiff', '.webp', '.jpg', '.jfif', '.svg', '.ico', '.raw', '.heif', '.heic'}
+
+        # 이미지 파일이면 JPEG로 변환
+        if ext.lower() in image_extensions:
+            print("this file is image")
+            # convert_to_jpeg(destination_file_name)  # 동기 JPEG 변환 함수 호출
+        # else:
+            # print(f"{destination_file_name} is not an image file.")
+
     except Exception as e:
         print(f"Error downloading {blob.name}: {e}")
 
+def convert_to_jpeg(file_path):
+    """Convert the given image file to JPEG format."""
+    try:
+        # 이미지 파일 열기
+        with Image.open(file_path) as img:
+            jpeg_file_path = os.path.splitext(file_path)[0] + '_converted.jpeg'
+            img.convert('RGB').save(jpeg_file_path, 'JPEG')
+            print(f"Converted {file_path} to {jpeg_file_path}")
 
-async def download_blob(blob, destination_file_name):
-    """Download a blob from GCS asynchronously."""
-    # blob.download_to_filename는 블로킹 메서드이므로 asyncio.create_task()를 사용하여 비동기적으로 실행
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, blob.download_to_filename, destination_file_name)
+            # 원본 파일 삭제 (옵션)
+            # os.remove(file_path)
 
-async def download_blobs(group_room_num):
-    # Define the prefix based on the group room number
-    prefix = f"rooms/{group_room_num}/"  # GCS에 저장된 경로에서 bucket 이름 제거
+    except Exception as e:
+        print(f"Error converting {file_path} to JPEG: {e}")
 
-    # Get the current directory
+def download_blobs(group_room_num):
+    print("download_blobs 함수 실행")
+    """Download all blobs for a group room synchronously."""
+    prefix = f"rooms/{group_room_num}/"
     current_directory = os.getcwd()
 
-    # Define the destination folders for downloading
+    # targets와 images 폴더 설정
     destination_folders = {
-        "targets": os.path.join(current_directory, f"{group_room_num}/targets"),
-        "image": os.path.join(current_directory, f"{group_room_num}/image"),
+        "targets": os.path.join(current_directory, str(group_room_num), "targets"),
+        "image": os.path.join(current_directory, str(group_room_num), "image"),
     }
 
     # Ensure the destination folders exist
     for folder in destination_folders.values():
-        await ensure_directory_exists(folder)
+        ensure_directory_exists(folder)
 
-    # List all blobs (files) in the bucket with the specified prefix
-    blobs = await bucket.list_blobs(prefix=prefix)
+    blobs = bucket.list_blobs(prefix=prefix)
 
-    # Download each blob to the local destination folder, maintaining the structure
-    async for blob in blobs:
-        await print(f"when download_blobs, blob: {blob.name}")
+    # 동기 다운로드 작업 수행
+    for blob in blobs:
+        if blob.name.endswith("/"):
+            print(f"Skipping directory: {blob.name}")
+            continue
 
-        # Check if the blob is in the target or image folder
-        if "targets/" in blob.name:
-            destination_folder = destination_folders["targets"]
-        elif "image/" in blob.name:
-            destination_folder = destination_folders["image"]
-        else:
-            continue  # Skip if not in targets or image
+        # 저장할 폴더 결정
+        destination_folder = destination_folders["targets"] if "targets/" in blob.name else destination_folders["image"]
+        local_file_name = blob.name.split("/")[-1]
+        local_file_path = os.path.join(destination_folder, local_file_name)
 
-        # Construct the relative path for the local file
-        relative_path = blob.name[len(prefix):]  # Get the relative path
-        local_file_path = os.path.join(destination_folder, relative_path)
+        print(f"Downloading {blob.name} to {local_file_path}...")
+        download_blob(blob, local_file_path)  # 동기 다운로드 함수 호출
 
-        # Ensure the directory structure exists for the local file path
-        local_file_dir = os.path.dirname(local_file_path)
-        await ensure_directory_exists(local_file_dir)
-
-        # Download the blob to the local file
-        await print(f"Downloading {blob.name} to {local_file_path}...")
-        await download_blob(blob, local_file_path)  # 비동기 다운로드
-
-    await print("Download completed.")
+    print("All downloads completed.")

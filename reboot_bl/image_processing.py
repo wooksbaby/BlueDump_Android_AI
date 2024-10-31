@@ -7,18 +7,16 @@ import aiofiles.os
 from deepface import DeepFace
 from utils import convert_to_jpg
 from PIL import Image
-import tensorflow as tf
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List
+import cv2
+import concurrent.futures
 
-
-
-# TensorFlow GPU 설정
-physical_devices = tf.config.list_physical_devices('GPU')
-if len(physical_devices) > 0:
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 async def ensure_directory_exists(directory):
     """Ensure that the directory exists (async version)."""
@@ -26,14 +24,15 @@ async def ensure_directory_exists(directory):
         await aiofiles.os.makedirs(directory)
         logger.info(f"Directory created: {directory}")
 
+
 async def convert_to_jpg(image_path):
     """이미지 파일을 JPG로 변환"""
-    if not image_path.endswith('.jpg'):
-        jpg_path = image_path.rsplit('.', 1)[0] + '.jpg'
+    if not image_path.endswith(".jpg"):
+        jpg_path = image_path.rsplit(".", 1)[0] + ".jpg"
         try:
             with Image.open(image_path) as img:
-                rgb_img = img.convert('RGB')
-                rgb_img.save(jpg_path, 'JPEG')
+                rgb_img = img.convert("RGB")
+                rgb_img.save(jpg_path, "JPEG")
                 logger.info(f"Converted {image_path} to {jpg_path}")
             return jpg_path
         except Exception as e:
@@ -41,73 +40,95 @@ async def convert_to_jpg(image_path):
             raise
     return image_path
 
-async def deepface_verify_async(img1_path, img2_path):
-    loop = asyncio.get_event_loop()
+
+# DeepFace.verify를 스레드풀에서 실행하는 비동기 함수
+
+
+
+def deepface_verify(img1, img2):
+    """Verify if two images are of the same person using DeepFace."""
+    
+    # 파일 경로 확인
+    if not os.path.exists(img1):
+        print(f"Error: img1 파일이 존재하지 않습니다: {img1}")
+        return False
+    if not os.path.exists(img2):
+        print(f"Error: img2 파일이 존재하지 않습니다: {img2}")
+        return False
+
     try:
-        return await loop.run_in_executor(
-            None, 
-            lambda: DeepFace.verify(
-                img1_path=img1_path,
-                img2_path=img2_path,
-                model_name="Facenet",
-                distance_metric="euclidean",
-                detector_backend="retinaface",
-                enforce_detection=True,
-                align=True
-            )
+        # DeepFace 비교 실행
+        print(f"Comparing images:\n img1: {img1}\n img2: {img2}")
+        result = DeepFace.verify(
+            img1_path=img1,
+            img2_path=img2,
+            model_name="Facenet",
+            distance_metric="euclidean",
+            detector_backend="mtcnn",  # 또는 "opencv" 사용 가능
+            enforce_detection=False,
+            align=True,
         )
+        
+        print(f"Comparison result: {result['verified']}")
+        return result["verified"]  # 비교 결과 반환
+
     except Exception as e:
-        logger.error(f"Error during DeepFace verification between {img1_path} and {img2_path}: {e}")
-        raise
-async def classify_images_with_options(group_room_num: int):
-    """타겟 이미지를 기준으로 다양한 옵션으로 이미지 분류 및 저장"""
-    logger.info("Starting image classification process...")
+        print(f"Error processing images {img1} and {img2}: {e}")
+        return False  # 실패 시 False 반환
+def classify_images(target_dir, image_dir, outputs):
+    target_images = [os.path.join(target_dir, f) for f in os.listdir(target_dir)]
+    image_files = [os.path.join(image_dir, f) for f in os.listdir(image_dir)]
 
-    # 디렉토리 경로 설정
-    target_directory = f"cloud-bucket-bluedump/rooms/{group_room_num}/targets"
-    images_directory = f"cloud-bucket-bluedump/rooms/{group_room_num}/images"
-    output_base_directory = f"cloud-bucket-bluedump/rooms/{group_room_num}/outputs"
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_image = {executor.submit(deepface_verify, image, target_image): (image, target_image) for image in image_files for target_image in target_images}
+        
+        for future in concurrent.futures.as_completed(future_to_image):
+            image, target_image = future_to_image[future]
+            try:
+                result = future.result()
+                if result:
+                    print(f"{image}와 {target_image}는 같은 사람입니다.")
+                else:
+                    print(f"{image}와 {target_image}는 다른 사람입니다.")
+            except Exception as exc:
+                print(f"{image}와 {target_image} 비교 중 오류 발생: {exc}")
+            
 
-    # 타겟 및 이미지 디렉토리의 모든 파일을 JPG로 변환
-    target_images = [
-        await convert_to_jpg(os.path.join(target_directory, f)) for f in os.listdir(target_directory)
-    ]
-    images = [
-        await convert_to_jpg(os.path.join(images_directory, f)) for f in os.listdir(images_directory)
-    ]
+    
 
-    matched_count = 0
-    similarities = []
+def classify_images_with_options(target_dir, image_dir, outputs, detector_backend='opencv'):
+    # 타겟 이미지와 비교할 대상 이미지 목록
+    target_images = [os.path.join(target_dir, f) for f in os.listdir(target_dir)]
+    image_files = [os.path.join(image_dir, f) for f in os.listdir(image_dir)]
 
-    # 결과가 저장될 디렉토리 설정
-    await ensure_directory_exists(output_base_directory)
-
-    for image in images:
+    for image in image_files:
         for target_image in target_images:
             person_name = os.path.splitext(os.path.basename(target_image))[0]
-            person_directory = os.path.join(output_base_directory, person_name)
-            await ensure_directory_exists(person_directory)
+            person_directory = os.path.join(outputs, person_name)  # 각 타겟별 디렉토리 생성
+
+            # 디렉토리 생성
+            if not os.path.exists(person_directory):
+                os.makedirs(person_directory)
 
             try:
-                # DeepFace로 얼굴 비교 (GPU 사용)
-                result = await deepface_verify_async(target_image, image)
+                # 얼굴 위치 감지
+                detections = DeepFace.extract_faces(img_path=image, detector_backend=detector_backend)
 
-                if result["verified"]:
-                    # 매칭된 이미지를 비동기적으로 복사
-                    await asyncio.get_event_loop().run_in_executor(
-                        None, shutil.copy, image, person_directory
-                    )
-                    matched_count += 1
-                    similarities.append(result['distance'])
-                    logger.info(f"Match found: {person_name} in {os.path.basename(image)}")
+                # 감지된 얼굴이 있을 경우 각 얼굴을 타겟과 비교
+                if detections:
+                    img = Image.open(image)
+                    for idx, region in enumerate(detections):
+                        # 얼굴 영역 잘라내기
+                        cropped_face = img.crop((region['x'], region['y'], region['x'] + region['w'], region['y'] + region['h']))
+                        cropped_face_path = os.path.join(person_directory, f"{os.path.basename(image).rsplit('.', 1)[0]}_face_{idx}.jpg")
+                        cropped_face.save(cropped_face_path)
+
+                        # 타겟 이미지와 비교하는 부분 추가
+                        match_result = DeepFace.verify(cropped_face_path, target_image, detector_backend=detector_backend)
+                        print(f"{os.path.basename(image)}의 얼굴과 {os.path.basename(target_image)} 비교 결과: {match_result}")
+
                 else:
-                    logger.info(f"No match for {person_name} in {os.path.basename(image)}")
+                    print(f"{os.path.basename(image)}에서 얼굴을 감지하지 못했습니다.")
 
             except Exception as e:
-                logger.error(f"Error processing image {os.path.basename(image)}: {e}")
-
-    logger.info(f"Classification complete: {matched_count} matches found. Similarities: {similarities}")
-
-    # outputs 폴더를 GCS에 업로드
-    from gcs_controller import upload_folder_to_gcs
-    await upload_folder_to_gcs(output_base_directory, f"rooms/{group_room_num}/outputs/")
+                print(f"{os.path.basename(image)}에서 얼굴을 감지하는 중 오류 발생: {e}")

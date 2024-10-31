@@ -12,8 +12,22 @@ from fastapi.responses import FileResponse
 from typing import List
 import os
 import json
+import tensorflow as tf
+
 # Load environment variables from the .env file
+
+
+
 load_dotenv("/home/BlueDump/.env")
+
+
+# TensorFlow GPU 설정
+physical_devices = tf.config.list_physical_devices("GPU")
+if physical_devices:
+    for gpu in physical_devices:
+        tf.config.experimental.set_memory_growth(gpu, True)
+else:
+    print("No GPU found.")
 
 app = FastAPI(debug=True)
 
