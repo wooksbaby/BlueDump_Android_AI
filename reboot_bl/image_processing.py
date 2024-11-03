@@ -13,16 +13,10 @@ import cv2
 import concurrent.futures
 
 
-# 로깅 설정
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
 async def ensure_directory_exists(directory):
     """Ensure that the directory exists (async version)."""
     if not await aiofiles.os.path.exists(directory):
         await aiofiles.os.makedirs(directory)
-        logger.info(f"Directory created: {directory}")
 
 
 async def convert_to_jpg(image_path):
@@ -33,10 +27,8 @@ async def convert_to_jpg(image_path):
             with Image.open(image_path) as img:
                 rgb_img = img.convert("RGB")
                 rgb_img.save(jpg_path, "JPEG")
-                logger.info(f"Converted {image_path} to {jpg_path}")
             return jpg_path
         except Exception as e:
-            logger.error(f"Error converting {image_path} to JPG: {e}")
             raise
     return image_path
 
@@ -45,90 +37,41 @@ async def convert_to_jpg(image_path):
 
 
 
-def deepface_verify(img1, img2):
-    """Verify if two images are of the same person using DeepFace."""
-    
-    # 파일 경로 확인
-    if not os.path.exists(img1):
-        print(f"Error: img1 파일이 존재하지 않습니다: {img1}")
-        return False
-    if not os.path.exists(img2):
-        print(f"Error: img2 파일이 존재하지 않습니다: {img2}")
-        return False
+async def classify_images(target_dir, image_dir, outputs):
+    """이미지 디렉토리의 모든 이미지를 가져와서 타겟 얼굴을 찾습니다."""
+    # 출력 디렉토리 확인 및 생성
+    if not os.path.exists(outputs):
+        os.makedirs(outputs)
+        print(f"출력 디렉토리 '{outputs}'를 생성했습니다.")
 
-    try:
-        # DeepFace 비교 실행
-        print(f"Comparing images:\n img1: {img1}\n img2: {img2}")
-        result = DeepFace.verify(
-            img1_path=img1,
-            img2_path=img2,
-            model_name="Facenet",
-            distance_metric="euclidean",
-            detector_backend="mtcnn",  # 또는 "opencv" 사용 가능
-            enforce_detection=False,
-            align=True,
-        )
-        
-        print(f"Comparison result: {result['verified']}")
-        return result["verified"]  # 비교 결과 반환
+    # 타겟 디렉토리 내의 이미지 목록 가져오기
+    target_images_list = [os.path.join(target_dir, f) for f in os.listdir(target_dir)]
+    image_file_list = [os.path.join(image_dir, f) for f in os.listdir(image_dir)]
 
-    except Exception as e:
-        print(f"Error processing images {img1} and {img2}: {e}")
-        return False  # 실패 시 False 반환
-def classify_images(target_dir, image_dir, outputs):
-    target_images = [os.path.join(target_dir, f) for f in os.listdir(target_dir)]
-    image_files = [os.path.join(image_dir, f) for f in os.listdir(image_dir)]
+    for target in target_images_list:
+        for image in image_file_list:
+            result = DeepFace.verify(
+                img1_path=target,
+                img2_path=image,
+                model_name="Facenet",
+                enforce_detection=False,
+                distance_metric="euclidean_l2",
+                detector_backend="retinaface",
+                align=True
+            )
+            # 결과가 True인 경우 img2를 outputs에 target 이름의 폴더 아래에 저장합니다.
+            if result['verified']: 
+                # 타겟 이미지의 파일 이름을 추출
+                target_name = os.path.splitext(os.path.basename(target))[0]
+                target_output_dir = os.path.join(outputs, target_name)
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future_to_image = {executor.submit(deepface_verify, image, target_image): (image, target_image) for image in image_files for target_image in target_images}
-        
-        for future in concurrent.futures.as_completed(future_to_image):
-            image, target_image = future_to_image[future]
-            try:
-                result = future.result()
-                if result:
-                    print(f"{image}와 {target_image}는 같은 사람입니다.")
-                else:
-                    print(f"{image}와 {target_image}는 다른 사람입니다.")
-            except Exception as exc:
-                print(f"{image}와 {target_image} 비교 중 오류 발생: {exc}")
-            
+                # 출력 디렉토리 확인 및 생성
+                if not os.path.exists(target_output_dir):
+                    os.makedirs(target_output_dir)
+                    print(f"'{target_output_dir}'를 생성했습니다.")
+
+                # img2를 해당 폴더로 복사
+                shutil.copy(image, os.path.join(target_output_dir, os.path.basename(image)))
+                print(f"'{image}'가 '{target_output_dir}'로 복사되었습니다.")
 
     
-
-def classify_images_with_options(target_dir, image_dir, outputs, detector_backend='opencv'):
-    # 타겟 이미지와 비교할 대상 이미지 목록
-    target_images = [os.path.join(target_dir, f) for f in os.listdir(target_dir)]
-    image_files = [os.path.join(image_dir, f) for f in os.listdir(image_dir)]
-
-    for image in image_files:
-        for target_image in target_images:
-            person_name = os.path.splitext(os.path.basename(target_image))[0]
-            person_directory = os.path.join(outputs, person_name)  # 각 타겟별 디렉토리 생성
-
-            # 디렉토리 생성
-            if not os.path.exists(person_directory):
-                os.makedirs(person_directory)
-
-            try:
-                # 얼굴 위치 감지
-                detections = DeepFace.extract_faces(img_path=image, detector_backend=detector_backend)
-
-                # 감지된 얼굴이 있을 경우 각 얼굴을 타겟과 비교
-                if detections:
-                    img = Image.open(image)
-                    for idx, region in enumerate(detections):
-                        # 얼굴 영역 잘라내기
-                        cropped_face = img.crop((region['x'], region['y'], region['x'] + region['w'], region['y'] + region['h']))
-                        cropped_face_path = os.path.join(person_directory, f"{os.path.basename(image).rsplit('.', 1)[0]}_face_{idx}.jpg")
-                        cropped_face.save(cropped_face_path)
-
-                        # 타겟 이미지와 비교하는 부분 추가
-                        match_result = DeepFace.verify(cropped_face_path, target_image, detector_backend=detector_backend)
-                        print(f"{os.path.basename(image)}의 얼굴과 {os.path.basename(target_image)} 비교 결과: {match_result}")
-
-                else:
-                    print(f"{os.path.basename(image)}에서 얼굴을 감지하지 못했습니다.")
-
-            except Exception as e:
-                print(f"{os.path.basename(image)}에서 얼굴을 감지하는 중 오류 발생: {e}")

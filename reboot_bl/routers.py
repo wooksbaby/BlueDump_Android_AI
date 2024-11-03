@@ -11,6 +11,7 @@ from gcs_controller import (
     upload_file_to_gcs,
     copy_profile_image_in_gcs,
     download_blobs,
+    upload_folder_to_gcs,
 )
 import os
 from model import GroupRoom, GroupDetail, Member  # 모델이 정의된 파일을 import
@@ -40,13 +41,14 @@ from schemas import (
     UploadedImages,
     MemberImages,
 )
+import shutil
 
 # from utils import verify_password, hash_password, cur_dir  # Assuming these functions exist
 from sqlalchemy.orm import Session
 from typing import List, Union
 from bdconfig import bucket
 from fastapi.responses import JSONResponse
-from image_processing import classify_images_with_options,classify_images
+from image_processing import classify_images
 import asyncio
 from sqlalchemy import exists
 import threading
@@ -126,9 +128,9 @@ async def get_classified_images(
 
     # 옵션에 따라 prefix 설정
     if group_room.GROUP_ROOM_OPTION:  # True인 경우 모든 멤버 결과 반환
-        prefix = f"rooms/{group_room_num}/results/"
+        prefix = f"rooms/{group_room_num}/outputs/"
     else:  # False인 경우 특정 멤버 결과만 반환
-        prefix = f"rooms/{group_room_num}/results/{member_num}/"
+        prefix = f"rooms/{group_room_num}/outputs/{member_num}/"
 
     # 해당 경로의 모든 블롭(파일) 나열
     blobs = bucket.list_blobs(prefix=prefix)
@@ -137,7 +139,7 @@ async def get_classified_images(
     member_images = {}
     for blob in blobs:
         # 확장자가 .jpg인 파일만 추가
-        if blob.name.lower().endswith(".jpg"):
+        if blob.name.lower().endswith((".jpg", ".jpeg", ".png")):
             # /로 분리하여 유저 넘버 추출
             parts = blob.name.split("/")
             blob_member_num = parts[3]  # results 다음의 유저넘버 부분 추출
@@ -152,27 +154,32 @@ async def get_classified_images(
     member_images_list = []
 
     for member_id, images in member_images.items():
-        # 각 멤버에 대한 URL과 닉네임을 DB에서 가져오기
-        member_data = (
-            db.query(Member).filter_by(MEMBER_NUM=int(member_id)).first()
-        )  # MEMBER_NUM을 사용하여 멤버 정보 조회
+        try:
+            # member_id를 정수로 변환 시도
+            member_id_int = int(member_id)
+            
+            # 각 멤버에 대한 URL과 닉네임을 DB에서 가져오기
+            member_data = db.query(Member).filter_by(MEMBER_NUM=member_id_int).first()
 
-        # member_url과 nickname이 존재하면 가져오고, 없으면 None으로 설정
-        member_profile_url = (
-            member_data.PROFILE_PATH if member_data else None
-        )  # Assume PROFILE_PATH is a field in the Member model
-        member_nickname = (
-            member_data.MEMBER_NICKNAME if member_data else None
-        )  # 추가된 닉네임 필드
+            # member_url과 nickname이 존재하면 가져오고, 없으면 None으로 설정
+            member_profile_url = (
+                member_data.PROFILE_PATH if member_data else None
+            )
+            member_nickname = (
+                member_data.MEMBER_NICKNAME if member_data else None
+            )
 
-        member_images_list.append(
-            {
-                "member_id": int(member_id),  # 멤버 ID는 정수형
-                "images": images,  # 해당 멤버의 이미지 리스트
-                "member_url": member_profile_url,  # 추가된 member_url
-                "nickname": member_nickname,  # 추가된 닉네임
-            }
-        )
+            member_images_list.append(
+                {
+                    "member_id": member_id_int,
+                    "images": images,
+                    "member_url": member_profile_url,
+                    "nickname": member_nickname,
+                }
+            )
+        except ValueError:
+            # 정수 변환 실패 시 로깅 또는 다른 처리를 할 수 있습니다.
+            print(f"Invalid member_id: {member_id}. Skipping...")
 
     # 최종 응답 반환
     return {
@@ -418,6 +425,12 @@ async def join_room(request: JoinRoomRequest, db: Session = Depends(get_db)):
         db.add(new_member)
         db.commit()
         db.refresh(new_member)
+
+        # GCS에서 프로필 사진 복사
+        source_blob_name = f"profile/{request.member_num}.jpg"  # 원본 이미지 경로
+        destination_blob_name = f"rooms/{request.group_room_num}/targets/{request.member_num}.jpg"  # 복사할 경로
+        copy_profile_image_in_gcs(source_blob_name, destination_blob_name)
+
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to join room: " + str(e))
@@ -613,7 +626,7 @@ async def update_flag_after_delay(group_room_num: int, delay: int):
 @router.post("/classify_photos")
 async def classify_photos(
     request: ClassifyPhotosRequest,
-    background_tasks: BackgroundTasks,
+    # background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_db),  # 비동기 세션 사용
 ):
     group_room_num = request.group_room_num
@@ -634,28 +647,75 @@ async def classify_photos(
     # 응답 메시지
     response = {"message": f"{group_room_num}번방 분류를 시작합니다."}
 
-    # 백그라운드 작업을 BackgroundTasks로 수행
-    background_tasks.add_task(background_task, group_room_num, db)  # db 인자 전달
+    asyncio.create_task(background_task(group_room_num))
+
+    # 응답 즉시 반환
     return response
 
+    # # 백그라운드 작업을 BackgroundTasks로 수행
+    # asyncio.create_task(
+    # background_task(group_room_num), db)  # db 인자 전달
 
-def background_task(group_room_num: int, db: Session):
-    print("background task started")
+    # return response
+
+
+async def background_task(group_room_num: int):
+    async with AsyncSessionLocal() as db:  # AsyncSessionLocal이 설정된 곳에서 가져옵니다.
+
+        print("background task started")
+    # async_session = AsyncSessionLocal
     # 트랜잭션 시작
     try:
         # 이미지 다운로드
-        download_blobs(group_room_num)  # 다운로드 함수 실행
+        await download_blobs(group_room_num)
 
         # 다운로드한 이미지 파일 목록을 가져옴
         cur_dir = os.getcwd()
-        target_dir = os.path.join(cur_dir, str(group_room_num), 'targets')
-        image_dir = os.path.join(cur_dir, str(group_room_num), 'image')
-        outputs = os.path.join(cur_dir, str(group_room_num), 'outputs')
-        classify_images(target_dir, image_dir, outputs)  # 분류 실행
-        print("분류완료")
+        target_dir = os.path.join(cur_dir, str(group_room_num), "targets")
+        image_dir = os.path.join(cur_dir, str(group_room_num), "image")
+        outputs = os.path.join(cur_dir, str(group_room_num), "outputs")
 
-        # classify_images_with_options(target_dir, image_dir, outputs)  # 분류 실행
-        
+        # 이미지 분류 실행
+        await classify_images(target_dir, image_dir, outputs)
+        print("분류 완료")
+
+        # 새로운 비동기 세션을 열어 데이터베이스 작업 수행
+        # GROUP_ROOM_NUM을 기준으로 그룹룸 조회
+        result = await db.execute(
+            select(GroupRoom).filter(GroupRoom.GROUP_ROOM_NUM == group_room_num)
+        )
+        group_room = result.scalar_one_or_none()
+
+        # GCS에 업로드할 폴더 경로 설정
+        destination_blob_prefix = f"rooms/{group_room_num}/outputs"
+        await upload_folder_to_gcs(bucket, outputs, destination_blob_prefix)
+
+        if group_room:
+            # 상태를 COMPLETED로 변경
+            group_room.CLASSIFIED_FINISH_FLAG = "COMPLETED"
+            await db.commit()  # 변경 사항 커밋
+            print(f"그룹룸 {group_room_num}의 상태를 'COMPLETED'로 변경했습니다.")
+        else:
+            print(f"그룹룸 {group_room_num}을 찾을 수 없습니다.")
+
+        # 그룹 룸 폴더 삭제
+        await delete_group_room_folder(group_room_num)
+        print(f"그룹룸 {group_room_num}의 폴더를 삭제했습니다.")
 
     except Exception as e:
-        print(f"이미지 분류 중 오류 발생: {e}")
+        print(f"Error during background task: {e}")
+
+
+async def delete_group_room_folder(group_room_num):
+    """현재 작업 디렉토리에서 지정된 그룹룸 번호에 해당하는 폴더를 삭제합니다."""
+    # 현재 작업 디렉토리 가져오기
+    cur_dir = os.getcwd()
+    folder_path = os.path.join(cur_dir, str(group_room_num))
+
+    # 폴더가 존재하는지 확인
+    if os.path.exists(folder_path):
+        # 폴더 삭제
+        await asyncio.to_thread(shutil.rmtree, folder_path)
+        print(f"폴더 '{folder_path}'가 삭제되었습니다.")
+    else:
+        print(f"폴더 '{folder_path}'가 존재하지 않습니다.")

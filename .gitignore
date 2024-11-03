@@ -188,3 +188,6 @@ reboot_bl/keys
 *.env
 /reboot_bl/.env
 *.json
+*.jpg
+*.jpeg
+*.png

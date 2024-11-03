@@ -12,19 +12,19 @@ def ensure_directory_exists(directory):
         os.makedirs(directory)
 
 # 환경 변수 설정
-async def copy_profile_image_in_gcs(source_blob_name: str, destination_blob_name: str):
+def copy_profile_image_in_gcs(source_blob_name: str, destination_blob_name: str):
     """GCS에서 프로필 이미지를 복사하는 함수."""
     source_blob = bucket.blob(source_blob_name)
 
+    # 이미지 복사
     try:
-        await asyncio.get_running_loop().run_in_executor(
-            executor, bucket.copy_blob, source_blob, bucket, destination_blob_name
-        )
+        # copy_blob 메서드를 사용하여 소스 블롭을 대상 블롭으로 복사
+        bucket.copy_blob(source_blob, bucket, destination_blob_name)
         print(f"Copied {source_blob_name} to {destination_blob_name}")
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to copy profile image: {str(e)}"
-        )
+        # 복사 실패 시 HTTPException 발생
+        raise HTTPException(status_code=500, detail=f"Failed to copy profile image: {str(e)}")
+
 
 
 async def upload_file_to_gcs(file: UploadFile, destination_blob_name: str) -> bool:
@@ -48,25 +48,15 @@ async def upload_local_file_to_gcs(file_path: str, gcs_blob_path: str) -> None:
     await loop.run_in_executor(None, blob.upload_from_filename, file_path)
 
 
-async def upload_folder_to_gcs(local_folder_path: str, group_room_num: int) -> None:
-    """로컬 폴더를 GCS에 비동기로 업로드합니다."""
-    destination_blob_prefix = f"rooms/{group_room_num}/outputs"
-    tasks = []
-
-    # 로컬 폴더의 파일을 순회합니다.
-    for root, _, files in os.walk(local_folder_path):
+async def upload_folder_to_gcs(bucket, local_folder_path, destination_blob_prefix):
+    for root, dirs, files in os.walk(local_folder_path):
         for file_name in files:
             local_file_path = os.path.join(root, file_name)
-            # GCS의 경로를 생성합니다.
             relative_path = os.path.relpath(local_file_path, local_folder_path)
             gcs_blob_path = os.path.join(destination_blob_prefix, relative_path)
-
-            # 비동기 업로드 작업을 추가합니다.
-            tasks.append(upload_local_file_to_gcs(local_file_path, gcs_blob_path))
-
-    # 모든 비동기 업로드 작업을 대기합니다.
-    await asyncio.gather(*tasks)
-    print("All files uploaded successfully.")
+            blob = bucket.blob(gcs_blob_path)
+            blob.upload_from_filename(local_file_path)
+            print(f"Uploaded {local_file_path} to {blob}")
 
 
 def download_blob(blob, destination_file_name):
@@ -108,7 +98,7 @@ def convert_to_jpeg(file_path):
     except Exception as e:
         print(f"Error converting {file_path} to JPEG: {e}")
 
-def download_blobs(group_room_num):
+async def download_blobs(group_room_num):
     print("download_blobs 함수 실행")
     """Download all blobs for a group room synchronously."""
     prefix = f"rooms/{group_room_num}/"
@@ -122,7 +112,8 @@ def download_blobs(group_room_num):
 
     # Ensure the destination folders exist
     for folder in destination_folders.values():
-        ensure_directory_exists(folder)
+
+            await asyncio.to_thread(ensure_directory_exists,folder)
 
     blobs = bucket.list_blobs(prefix=prefix)
 
